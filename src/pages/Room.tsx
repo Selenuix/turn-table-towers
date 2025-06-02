@@ -98,19 +98,24 @@ const Room = () => {
 
     fetchRoom();
 
-    // Set up real-time subscription
+    // Create a unique channel name to avoid conflicts with other subscriptions
+    const channelName = `room_${id}_${user.id}_${Date.now()}`;
+    
+    // Set up real-time subscription for this specific room
     const subscription = supabase
-      .channel(`room_${id}`)
+      .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
         () => {
+          console.log('Room updated, refetching...');
           fetchRoom();
         }
       )
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      console.log('Cleaning up room subscription');
+      supabase.removeChannel(subscription);
     };
   }, [id, user]);
 

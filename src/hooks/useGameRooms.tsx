@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -217,19 +218,24 @@ export const useGameRooms = () => {
     if (user) {
       fetchRooms();
 
+      // Create a unique channel name to avoid conflicts
+      const channelName = `game_rooms_${user.id}_${Date.now()}`;
+      
       // Set up real-time subscription
       const subscription = supabase
-        .channel('game_rooms_changes')
+        .channel(channelName)
         .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'game_rooms' },
           () => {
+            console.log('Game rooms updated, refetching...');
             fetchRooms();
           }
         )
         .subscribe();
 
       return () => {
-        subscription.unsubscribe();
+        console.log('Cleaning up game rooms subscription');
+        supabase.removeChannel(subscription);
       };
     }
   }, [user]);
