@@ -1,5 +1,6 @@
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,14 +11,14 @@ import { X } from 'lucide-react';
 interface CreateRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onRoomCreated: (roomId: string) => void;
 }
 
-const CreateRoomModal = ({ isOpen, onClose, onRoomCreated }: CreateRoomModalProps) => {
+const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
   const [roomName, setRoomName] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [loading, setLoading] = useState(false);
   const { createRoom } = useGameRooms();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +27,8 @@ const CreateRoomModal = ({ isOpen, onClose, onRoomCreated }: CreateRoomModalProp
     try {
       const { data, error } = await createRoom(roomName, maxPlayers);
       if (data && !error) {
-        onRoomCreated(data.id);
+        // Automatically navigate to the created room
+        navigate(`/room/${data.id}`);
         onClose();
         setRoomName('');
         setMaxPlayers(4);
@@ -98,7 +100,7 @@ const CreateRoomModal = ({ isOpen, onClose, onRoomCreated }: CreateRoomModalProp
                 className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 disabled={loading}
               >
-                {loading ? 'Creating...' : 'Create Room'}
+                {loading ? 'Creating...' : 'Create & Join Room'}
               </Button>
             </div>
           </form>

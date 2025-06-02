@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -35,15 +34,11 @@ const Index = () => {
     }
   };
 
-  const handleRoomCreated = (roomId: string) => {
-    navigate(`/room/${roomId}`);
-  };
-
   const handleRoomJoined = (roomId: string) => {
     navigate(`/room/${roomId}`);
   };
 
-  const getStatusColor = (status: string) => {
+  function getStatusColor(status: string) {
     switch (status) {
       case "waiting":
         return "bg-green-500/20 text-green-400 border-green-500/30";
@@ -52,7 +47,7 @@ const Index = () => {
       default:
         return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
-  };
+  }
 
   if (authLoading) {
     return (
@@ -236,7 +231,6 @@ const Index = () => {
       <CreateRoomModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onRoomCreated={handleRoomCreated}
       />
       <JoinRoomModal
         isOpen={isJoinModalOpen}

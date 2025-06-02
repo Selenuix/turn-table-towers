@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useGameRooms } from '@/hooks/useGameRooms';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Crown, Copy, LogOut, Play } from 'lucide-react';
+import { Users, Crown, Copy, LogOut, Play, Settings, Shuffle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const Room = () => {
@@ -69,6 +69,34 @@ const Room = () => {
     const { error } = await leaveRoom(id);
     if (!error) {
       navigate('/');
+    }
+  };
+
+  const handleStartGame = async () => {
+    if (!room || !isOwner) return;
+
+    try {
+      const { error } = await supabase
+        .from('game_rooms')
+        .update({ 
+          status: 'in_progress',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', room.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Game Started!",
+        description: "The game has begun. Good luck!",
+      });
+    } catch (error) {
+      console.error('Error starting game:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start game",
+        variant: "destructive",
+      });
     }
   };
 
@@ -139,6 +167,7 @@ const Room = () => {
   const isOwner = user?.id === room.owner_id;
   const isPlayerInRoom = room.player_ids.includes(user?.id);
   const canStartGame = isOwner && room.player_ids.length >= 2 && room.status === 'waiting';
+  const isGameInProgress = room.status === 'in_progress';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -184,21 +213,42 @@ const Room = () => {
                   <Users className="w-5 h-5 mr-2" />
                   Room Status
                 </CardTitle>
-                <Badge 
-                  className={
-                    room.status === 'waiting' 
-                      ? 'bg-green-500/20 text-green-400 border-green-500/30' 
-                      : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                  }
-                >
-                  {room.status === 'waiting' ? 'Waiting for Players' : 'In Progress'}
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  <Badge 
+                    className={
+                      room.status === 'waiting' 
+                        ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                        : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                    }
+                  >
+                    {room.status === 'waiting' ? 'Waiting for Players' : 'Game in Progress'}
+                  </Badge>
+                  {isOwner && room.status === 'waiting' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-slate-300 space-y-2">
-                <p>Players: {room.player_ids.length}/{room.max_players}</p>
-                <p>Room Code: <span className="font-mono font-bold">{room.room_code}</span></p>
+              <div className="text-slate-300 space-y-3">
+                <div className="flex justify-between">
+                  <span>Players:</span>
+                  <span className="font-bold">{room.player_ids.length}/{room.max_players}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Room Code:</span>
+                  <span className="font-mono font-bold">{room.room_code}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Created:</span>
+                  <span>{new Date(room.created_at).toLocaleString()}</span>
+                </div>
                 <div className="flex space-x-2 mt-4">
                   <Button
                     onClick={copyInviteLink}
@@ -208,6 +258,15 @@ const Room = () => {
                     <Copy className="w-4 h-4 mr-2" />
                     Copy Invite Link
                   </Button>
+                  {isGameInProgress && (
+                    <Button
+                      variant="outline"
+                      className="border-blue-600 text-blue-400 hover:bg-blue-600/10"
+                    >
+                      <Shuffle className="w-4 h-4 mr-2" />
+                      View Game
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -216,7 +275,7 @@ const Room = () => {
           {/* Players List */}
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">Players</CardTitle>
+              <CardTitle className="text-white">Players ({players.length})</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -236,11 +295,31 @@ const Room = () => {
                         <Crown className="w-4 h-4 ml-2 text-yellow-400" />
                       )}
                     </div>
-                    {player.id === user?.id && (
-                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                        You
-                      </Badge>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {player.id === user?.id && (
+                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                          You
+                        </Badge>
+                      )}
+                      {isGameInProgress && (
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                          Ready
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Empty slots */}
+                {Array.from({ length: room.max_players - players.length }, (_, index) => (
+                  <div
+                    key={`empty-${index}`}
+                    className="flex items-center p-3 bg-slate-700/10 rounded-lg border-2 border-dashed border-slate-600"
+                  >
+                    <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-slate-400 mr-3">
+                      ?
+                    </div>
+                    <span className="text-slate-400">Waiting for player...</span>
                   </div>
                 ))}
               </div>
@@ -256,24 +335,35 @@ const Room = () => {
                 disabled={room.player_ids.length >= room.max_players || room.status !== 'waiting'}
               >
                 <Users className="w-4 h-4 mr-2" />
-                Join Game
+                {room.player_ids.length >= room.max_players ? 'Room Full' : 'Join Game'}
               </Button>
             ) : (
               <div className="flex space-x-4">
                 {canStartGame && (
                   <Button
                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                    onClick={() => {
-                      toast({
-                        title: "Game Starting",
-                        description: "Game functionality will be implemented next!",
-                      });
-                    }}
+                    onClick={handleStartGame}
                   >
                     <Play className="w-4 h-4 mr-2" />
                     Start Game
                   </Button>
                 )}
+                
+                {isGameInProgress && (
+                  <Button
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                    onClick={() => {
+                      toast({
+                        title: "Game Active",
+                        description: "Game functionality will be implemented next!",
+                      });
+                    }}
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    Continue Game
+                  </Button>
+                )}
+                
                 <Button
                   onClick={handleLeaveRoom}
                   variant="outline"
@@ -285,6 +375,23 @@ const Room = () => {
               </div>
             )}
           </div>
+
+          {/* Game Requirements */}
+          {isPlayerInRoom && room.status === 'waiting' && (
+            <Card className="bg-blue-500/10 border-blue-500/30">
+              <CardContent className="p-4">
+                <div className="text-center text-blue-300">
+                  {room.player_ids.length < 2 ? (
+                    <p>Waiting for at least 2 players to start the game...</p>
+                  ) : isOwner ? (
+                    <p>Ready to start! Click "Start Game" when everyone is ready.</p>
+                  ) : (
+                    <p>Waiting for room owner to start the game...</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>

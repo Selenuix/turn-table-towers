@@ -1,5 +1,3 @@
-
-
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -70,7 +68,7 @@ export const useGameRooms = () => {
 
       toast({
         title: "Room created!",
-        description: `Room code: ${data.room_code}`,
+        description: `Room "${data.name || data.room_code}" created successfully`,
       });
 
       await fetchRooms();
@@ -251,4 +249,3 @@ export const useGameRooms = () => {
     refetchRooms: fetchRooms,
   };
 };
-
