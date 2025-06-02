@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useGameRooms } from '@/hooks/useGameRooms';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, Crown, Copy, LogOut, Play } from 'lucide-react';
-import { useToast } = '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const Room = () => {
   const { id } = useParams<{ id: string }>();
