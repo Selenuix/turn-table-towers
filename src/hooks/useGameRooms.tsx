@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -10,7 +9,7 @@ export interface GameRoom {
   owner_id: string;
   player_ids: string[];
   max_players: number;
-  status: 'waiting' | 'in_progress' | 'finished';
+  status: string;
   room_code: string;
   created_at: string;
   updated_at: string;
