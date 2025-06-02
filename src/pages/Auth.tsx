@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -13,8 +15,16 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp, signIn } = useAuth();
+  const { signUp, signIn, user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,10 +53,21 @@ const Auth = () => {
             description: error.message,
             variant: "destructive",
           });
+        } else {
+          toast({
+            title: "Welcome back!",
+            description: "You've been signed in successfully.",
+          });
+          navigate('/');
         }
       }
     } catch (error) {
       console.error('Auth error:', error);
+      toast({
+        title: "An error occurred",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -73,7 +94,7 @@ const Auth = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="bg-slate-700 border-slate-600 text-white"
-                  required
+                  placeholder="Enter your username"
                 />
               </div>
             )}
@@ -87,6 +108,7 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-slate-700 border-slate-600 text-white"
+                placeholder="Enter your email"
                 required
               />
             </div>
@@ -100,6 +122,7 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-slate-700 border-slate-600 text-white"
+                placeholder="Enter your password"
                 required
               />
             </div>

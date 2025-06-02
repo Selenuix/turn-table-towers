@@ -1,10 +1,11 @@
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useGameRooms } from '@/hooks/useGameRooms';
+import { X } from 'lucide-react';
 
 interface JoinRoomModalProps {
   isOpen: boolean;
@@ -19,10 +20,12 @@ const JoinRoomModal = ({ isOpen, onClose, onRoomJoined }: JoinRoomModalProps) =>
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!roomCode.trim()) return;
+
     setLoading(true);
 
     try {
-      const { data, error } = await joinRoomByCode(roomCode);
+      const { data, error } = await joinRoomByCode(roomCode.trim());
       if (data && !error) {
         onRoomJoined(data.id);
         onClose();
@@ -35,47 +38,61 @@ const JoinRoomModal = ({ isOpen, onClose, onRoomJoined }: JoinRoomModalProps) =>
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-white">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Join Game Room</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div>
-            <Label htmlFor="roomCode" className="text-sm font-medium">
-              Room Code
-            </Label>
-            <Input
-              id="roomCode"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              placeholder="Enter 6-character room code..."
-              className="bg-slate-700 border-slate-600 text-white mt-1"
-              maxLength={6}
-              required
-            />
-          </div>
-          <div className="flex space-x-2 pt-4">
-            <Button
-              type="submit"
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-              disabled={loading || roomCode.length !== 6}
-            >
-              {loading ? 'Joining...' : 'Join Room'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="flex-1 border-slate-600 text-white hover:bg-slate-700"
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md bg-slate-800 border-slate-700">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-white">Join Room</CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="roomCode" className="text-slate-300">
+                Room Code
+              </Label>
+              <Input
+                id="roomCode"
+                type="text"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                className="bg-slate-700 border-slate-600 text-white font-mono"
+                placeholder="Enter 6-character room code"
+                maxLength={6}
+                required
+              />
+            </div>
+            <div className="flex space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="flex-1 border-slate-600 text-white hover:bg-slate-700"
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                disabled={loading || roomCode.length !== 6}
+              >
+                {loading ? 'Joining...' : 'Join Room'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
