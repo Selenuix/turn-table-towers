@@ -1,4 +1,5 @@
 
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -218,8 +219,8 @@ export const useGameRooms = () => {
     if (user) {
       fetchRooms();
 
-      // Create a unique channel name to avoid conflicts
-      const channelName = `game_rooms_${user.id}_${Date.now()}`;
+      // Use a consistent channel name based on user ID only
+      const channelName = `game_rooms_${user.id}`;
       
       // Set up real-time subscription
       const subscription = supabase
@@ -250,3 +251,4 @@ export const useGameRooms = () => {
     refetchRooms: fetchRooms,
   };
 };
+

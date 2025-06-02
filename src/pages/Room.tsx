@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -98,8 +99,8 @@ const Room = () => {
 
     fetchRoom();
 
-    // Create a unique channel name to avoid conflicts with other subscriptions
-    const channelName = `room_${id}_${user.id}_${Date.now()}`;
+    // Use a consistent channel name based on room ID and user ID
+    const channelName = `room_${id}_${user.id}`;
     
     // Set up real-time subscription for this specific room
     const subscription = supabase
