@@ -30,19 +30,24 @@ const Index = () => {
 
   const handleJoinRoom = async (roomId: string) => {
     console.log('Attempting to join room:', roomId);
-    const { data } = await joinRoom(roomId);
-    if (data) {
-      console.log('Successfully joined room, navigating to:', `/room/${roomId}`);
-      navigate(`/room/${roomId}`);
+    try {
+      const { data } = await joinRoom(roomId);
+      if (data) {
+        console.log('Successfully joined room, navigating to:', `/room/${roomId}`);
+        navigate(`/room/${roomId}`);
+      }
+    } catch (error) {
+      console.error('Error joining room:', error);
     }
   };
 
   const handleEnterRoom = (roomId: string) => {
-    console.log('Entering room:', roomId);
+    console.log('Entering room via navigation:', roomId);
     navigate(`/room/${roomId}`);
   };
 
   const handleRoomJoined = (roomId: string) => {
+    console.log('Room joined via modal, navigating to:', roomId);
     navigate(`/room/${roomId}`);
   };
 

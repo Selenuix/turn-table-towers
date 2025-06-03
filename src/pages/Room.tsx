@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,11 @@ const Room = () => {
   const subscriptionRef = useRef<any>(null);
 
   const fetchRoom = async () => {
-    if (!id) return;
+    if (!id) {
+      console.log('No room ID provided');
+      navigate('/');
+      return;
+    }
 
     try {
       console.log('Fetching room data for ID:', id);
@@ -48,7 +53,6 @@ const Room = () => {
 
         if (profilesError) {
           console.error('Profiles fetch error:', profilesError);
-          throw profilesError;
         }
         
         console.log('Players data fetched:', profilesData);
@@ -135,12 +139,19 @@ const Room = () => {
   };
 
   useEffect(() => {
+    console.log('Room component mounted, user:', user?.email, 'room ID:', id);
+    
     if (!user) {
+      console.log('No user found, redirecting to auth');
       navigate('/auth');
       return;
     }
 
-    if (!id) return;
+    if (!id) {
+      console.log('No room ID, redirecting to home');
+      navigate('/');
+      return;
+    }
 
     // Clean up any existing subscription first
     if (subscriptionRef.current) {
@@ -180,7 +191,7 @@ const Room = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [id, user?.id]);
+  }, [id, user?.id]); // Only depend on id and user.id to prevent infinite loops
 
   if (loading) {
     return (
