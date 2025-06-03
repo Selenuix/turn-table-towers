@@ -2,18 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
-
-export interface GameRoom {
-  id: string;
-  name: string | null;
-  owner_id: string;
-  player_ids: string[];
-  max_players: number;
-  status: string;
-  room_code: string;
-  created_at: string;
-  updated_at: string;
-}
+import { GameRoom, Player } from '@/features/game-room/types';
 
 export const useGameRooms = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
@@ -21,6 +10,71 @@ export const useGameRooms = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const subscriptionRef = useRef<any>(null);
+
+  const getRoom = async (roomId: string): Promise<GameRoom | null> => {
+    console.log('getRoom called with ID:', roomId);
+    try {
+      const { data, error } = await supabase
+        .from('game_rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching room:', error);
+        throw error;
+      }
+
+      console.log('Room data from database:', data);
+      return data;
+    } catch (error) {
+      console.error('Error in getRoom:', error);
+      return null;
+    }
+  };
+
+  const getPlayers = async (playerIds: string[]): Promise<Player[]> => {
+    console.log('getPlayers called with IDs:', playerIds);
+    if (!playerIds.length) {
+      console.log('No player IDs provided');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', playerIds);
+
+      if (error) {
+        console.error('Error fetching players:', error);
+        throw error;
+      }
+
+      console.log('Players data from database:', data);
+      return data || [];
+    } catch (error) {
+      console.error('Error in getPlayers:', error);
+      return [];
+    }
+  };
+
+  const startGame = async (roomId: string) => {
+    try {
+      const { error } = await supabase
+        .from('game_rooms')
+        .update({ 
+          status: 'in_progress',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', roomId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error starting game:', error);
+      throw error;
+    }
+  };
 
   const fetchRooms = async () => {
     try {
@@ -242,7 +296,6 @@ export const useGameRooms = () => {
 
     // Clean up any existing subscription first
     if (subscriptionRef.current) {
-      console.log('Cleaning up existing subscription before creating new one');
       supabase.removeChannel(subscriptionRef.current);
       subscriptionRef.current = null;
     }
@@ -252,16 +305,12 @@ export const useGameRooms = () => {
     // Create a unique channel name with user ID and timestamp
     const channelName = `game_rooms_${user.id}_${Date.now()}`;
 
-    console.log('Setting up game rooms subscription with channel:', channelName);
-
     // Set up real-time subscription
     const subscription = supabase
       .channel(channelName)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'game_rooms' },
         async (payload) => {
-          console.log('Game rooms updated:', payload);
-          
           // If it's a DELETE event, remove the room from the list
           if (payload.eventType === 'DELETE') {
             setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
@@ -272,15 +321,12 @@ export const useGameRooms = () => {
           await fetchRooms();
         }
       )
-      .subscribe((status) => {
-        console.log('Game rooms subscription status:', status);
-      });
+      .subscribe();
 
     subscriptionRef.current = subscription;
 
     return () => {
       if (subscriptionRef.current) {
-        console.log('Cleaning up game rooms subscription:', channelName);
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
       }
@@ -295,5 +341,9 @@ export const useGameRooms = () => {
     joinRoomByCode,
     leaveRoom,
     refetchRooms: fetchRooms,
+    getRoom,
+    getPlayers,
+    startGame,
+    currentUser: user,
   };
 };
