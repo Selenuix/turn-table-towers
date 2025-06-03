@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,10 @@ const Index = () => {
     if (data) {
       navigate(`/room/${roomId}`);
     }
+  };
+
+  const handleEnterRoom = (roomId: string) => {
+    navigate(`/room/${roomId}`);
   };
 
   const handleRoomJoined = (roomId: string) => {
@@ -177,7 +182,13 @@ const Index = () => {
                       <Button 
                         className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium"
                         disabled={room.status === "in_progress" || room.player_ids.length >= room.max_players}
-                        onClick={() => handleJoinRoom(room.id)}
+                        onClick={() => {
+                          if (room.player_ids.includes(user?.id || '')) {
+                            handleEnterRoom(room.id);
+                          } else {
+                            handleJoinRoom(room.id);
+                          }
+                        }}
                       >
                         {room.status === "in_progress" 
                           ? "Game in Progress" 
