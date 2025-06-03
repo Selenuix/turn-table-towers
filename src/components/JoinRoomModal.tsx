@@ -76,7 +76,7 @@ const JoinRoomModal = ({ isOpen, onClose, onRoomJoined }: JoinRoomModalProps) =>
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                className="flex-1 border-slate-600 text-white hover:bg-slate-700"
+                className="flex-1 border-purple-500 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 font-semibold py-3 px-8 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
                 disabled={loading}
               >
                 Cancel

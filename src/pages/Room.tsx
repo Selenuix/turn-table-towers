@@ -1,11 +1,10 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-import { useGameRooms } from '@/hooks/useGameRooms';
+import { useGameRooms, GameRoom } from '@/hooks/useGameRooms';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, Crown, Copy, LogOut, Play, Settings, Shuffle, ArrowLeft, Clock, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -179,9 +178,27 @@ const Room = () => {
       .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
-        (payload) => {
+        async (payload: { new: GameRoom }) => {
           console.log('Room updated:', payload);
-          fetchRoom();
+          // Update room data
+          setRoom(payload.new);
+          
+          // Fetch updated player profiles
+          if (payload.new.player_ids.length > 0) {
+            const { data: profilesData, error: profilesError } = await supabase
+              .from('profiles')
+              .select('*')
+              .in('id', payload.new.player_ids);
+
+            if (profilesError) {
+              console.error('Profiles fetch error:', profilesError);
+            } else {
+              console.log('Players data updated:', profilesData);
+              setPlayers(profilesData || []);
+            }
+          } else {
+            setPlayers([]);
+          }
         }
       )
       .subscribe((status) => {
@@ -197,7 +214,7 @@ const Room = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [id, user?.id, authLoading]); // Add authLoading to dependencies
+  }, [id, user?.id, authLoading]);
 
   // Show loading while auth is loading
   if (authLoading) {
@@ -357,7 +374,7 @@ const Room = () => {
                 <Button
                   onClick={copyInviteLink}
                   variant="outline"
-                  className="border-slate-600 text-white hover:bg-slate-700"
+                  className="border-purple-500 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 font-semibold py-3 px-8 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
                 >
                   <Copy className="w-4 h-4 mr-2" />
                   Copy Invite Link

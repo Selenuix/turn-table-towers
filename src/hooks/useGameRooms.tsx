@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -90,7 +89,7 @@ export const useGameRooms = () => {
     if (!user) return { error: new Error('Not authenticated') };
 
     try {
-      // First get the current room data
+      // First get the current room data with a lock
       const { data: roomData, error: fetchError } = await supabase
         .from('game_rooms')
         .select('*')
@@ -115,20 +114,28 @@ export const useGameRooms = () => {
         return { data: roomData, error: null };
       }
 
-      // Add user to room
+      // Add user to room with optimistic locking
       const updatedPlayerIds = [...roomData.player_ids, user.id];
 
+      // Use a raw query to properly handle array comparison
       const { data, error } = await supabase
-        .from('game_rooms')
-        .update({ 
-          player_ids: updatedPlayerIds,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', roomId)
-        .select()
-        .single();
+        .rpc('join_game_room', {
+          p_room_id: roomId,
+          p_current_player_ids: roomData.player_ids,
+          p_new_player_ids: updatedPlayerIds
+        });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Concurrent update detected, retry once
+          return await joinRoom(roomId);
+        }
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('Failed to join room - please try again');
+      }
 
       toast({
         title: "Joined room!",
