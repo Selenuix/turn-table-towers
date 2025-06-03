@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,20 @@ const Index = () => {
 
   const handleRoomJoined = (roomId: string) => {
     navigate(`/room/${roomId}`);
+  };
+
+  const handleRoomButtonClick = (e: React.MouseEvent, room: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const isPlayerInRoom = room.player_ids.includes(user?.id || '');
+    console.log('Button clicked for room:', room.id, 'User in room:', isPlayerInRoom);
+    
+    if (isPlayerInRoom) {
+      handleEnterRoom(room.id);
+    } else {
+      handleJoinRoom(room.id);
+    }
   };
 
   function getStatusColor(status: string) {
@@ -182,18 +197,10 @@ const Index = () => {
                     
                     <div className="pt-2">
                       <Button 
+                        type="button"
                         className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium"
                         disabled={room.status === "in_progress" || room.player_ids.length >= room.max_players}
-                        onClick={() => {
-                          const isPlayerInRoom = room.player_ids.includes(user?.id || '');
-                          console.log('Button clicked for room:', room.id, 'User in room:', isPlayerInRoom);
-                          
-                          if (isPlayerInRoom) {
-                            handleEnterRoom(room.id);
-                          } else {
-                            handleJoinRoom(room.id);
-                          }
-                        }}
+                        onClick={(e) => handleRoomButtonClick(e, room)}
                       >
                         {room.status === "in_progress" 
                           ? "Game in Progress" 
