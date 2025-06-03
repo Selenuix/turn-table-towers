@@ -75,6 +75,23 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      join_game_room: {
+        Args: {
+          p_room_id: string
+          p_current_player_ids: string[]
+          p_new_player_ids: string[]
+        }
+        Returns: Database['public']['Tables']['game_rooms']['Row']
+      }
+      leave_game_room: {
+        Args: {
+          p_room_id: string
+          p_current_player_ids: string[]
+          p_new_player_ids: string[]
+          p_new_owner_id: string
+        }
+        Returns: Database['public']['Tables']['game_rooms']['Row']
+      }
     }
     Enums: {
       [_ in never]: never

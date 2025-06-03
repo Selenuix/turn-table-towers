@@ -138,57 +138,43 @@ const Room = () => {
   };
 
   useEffect(() => {
-    console.log('Room component mounted, user:', user?.email, 'authLoading:', authLoading, 'room ID:', id);
-    
-    // Wait for auth to finish loading before making decisions
-    if (authLoading) {
-      console.log('Auth still loading, waiting...');
-      return;
-    }
+    if (!id || !user?.id) return;
 
-    if (!user) {
-      console.log('No user found after auth loaded, redirecting to auth');
-      navigate('/auth');
-      return;
-    }
-
-    if (!id) {
-      console.log('No room ID, redirecting to home');
-      navigate('/');
-      return;
-    }
-
-    // Clean up any existing subscription first
-    if (subscriptionRef.current) {
-      console.log('Cleaning up existing room subscription before creating new one');
-      supabase.removeChannel(subscriptionRef.current);
-      subscriptionRef.current = null;
-    }
-
-    console.log('Setting up room page for room ID:', id);
     fetchRoom();
 
     // Create a unique channel name with user ID and timestamp
     const channelName = `room_${id}_${user.id}_${Date.now()}`;
-    
+
     console.log('Setting up room subscription with channel:', channelName);
-    
+
     // Set up real-time subscription for this specific room
     const subscription = supabase
       .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
-        async (payload: { new: GameRoom }) => {
+        async (payload) => {
           console.log('Room updated:', payload);
-          // Update room data
-          setRoom(payload.new);
           
-          // Fetch updated player profiles
-          if (payload.new.player_ids.length > 0) {
+          // If it's a DELETE event, navigate back to lobby
+          if (payload.eventType === 'DELETE') {
+            toast({
+              title: "Room Closed",
+              description: "The room has been closed",
+            });
+            navigate('/');
+            return;
+          }
+
+          // Update room data immediately
+          const updatedRoom = payload.new as GameRoom;
+          setRoom(updatedRoom);
+          
+          // Immediately update players list
+          if (updatedRoom.player_ids.length > 0) {
             const { data: profilesData, error: profilesError } = await supabase
               .from('profiles')
               .select('*')
-              .in('id', payload.new.player_ids);
+              .in('id', updatedRoom.player_ids);
 
             if (profilesError) {
               console.error('Profiles fetch error:', profilesError);
@@ -199,22 +185,53 @@ const Room = () => {
           } else {
             setPlayers([]);
           }
+
+          // If the current user is no longer in the room, navigate back to lobby
+          if (!updatedRoom.player_ids.includes(user.id)) {
+            toast({
+              title: "Left Room",
+              description: "You have left the room",
+            });
+            navigate('/');
+          }
         }
       )
       .subscribe((status) => {
         console.log('Room subscription status:', status);
       });
 
-    subscriptionRef.current = subscription;
+    // Also subscribe to profile changes for players in the room
+    const profileSubscription = supabase
+      .channel(`${channelName}_profiles`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        async (payload: { new: { id: string } }) => {
+          // Only update if the changed profile belongs to a player in the current room
+          if (room?.player_ids.includes(payload.new.id)) {
+            const { data: profilesData, error: profilesError } = await supabase
+              .from('profiles')
+              .select('*')
+              .in('id', room.player_ids);
+
+            if (!profilesError && profilesData) {
+              setPlayers(profilesData);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    subscriptionRef.current = { room: subscription, profiles: profileSubscription };
 
     return () => {
       if (subscriptionRef.current) {
-        console.log('Cleaning up room subscription:', channelName);
-        supabase.removeChannel(subscriptionRef.current);
+        console.log('Cleaning up room subscriptions:', channelName);
+        supabase.removeChannel(subscriptionRef.current.room);
+        supabase.removeChannel(subscriptionRef.current.profiles);
         subscriptionRef.current = null;
       }
     };
-  }, [id, user?.id, authLoading]);
+  }, [id, user?.id]);
 
   // Show loading while auth is loading
   if (authLoading) {
@@ -399,7 +416,17 @@ const Room = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {players.map((player) => (
+                {players
+                  .sort((a, b) => {
+                    // Room owner always comes first
+                    if (a.id === room.owner_id) return -1;
+                    if (b.id === room.owner_id) return 1;
+                    // Then sort by username/email
+                    const aName = a.username || a.email || '';
+                    const bName = b.username || b.email || '';
+                    return aName.localeCompare(bName);
+                  })
+                  .map((player) => (
                   <div
                     key={player.id}
                     className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg border border-slate-600/20"

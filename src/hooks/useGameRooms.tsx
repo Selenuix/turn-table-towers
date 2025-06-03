@@ -183,6 +183,7 @@ export const useGameRooms = () => {
     if (!user) return { error: new Error('Not authenticated') };
 
     try {
+      // First get the current room data with a lock
       const { data: roomData, error: fetchError } = await supabase
         .from('game_rooms')
         .select('*')
@@ -191,6 +192,11 @@ export const useGameRooms = () => {
 
       if (fetchError) throw fetchError;
 
+      if (!roomData) {
+        throw new Error('Room not found');
+      }
+
+      // Remove the current user from player_ids
       const updatedPlayerIds = roomData.player_ids.filter(id => id !== user.id);
 
       // If room becomes empty, delete it
@@ -202,16 +208,25 @@ export const useGameRooms = () => {
 
         if (deleteError) throw deleteError;
       } else {
-        // Update room with new player list
-        const { error: updateError } = await supabase
-          .from('game_rooms')
-          .update({ 
-            player_ids: updatedPlayerIds,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', roomId);
+        // If the leaving user is the owner, transfer ownership to the next player
+        const newOwnerId = roomData.owner_id === user.id ? updatedPlayerIds[0] : roomData.owner_id;
 
-        if (updateError) throw updateError;
+        // Use a raw query to properly handle array update
+        const { error: updateError } = await supabase
+          .rpc('leave_game_room', {
+            p_room_id: roomId,
+            p_current_player_ids: roomData.player_ids,
+            p_new_player_ids: updatedPlayerIds,
+            p_new_owner_id: newOwnerId
+          });
+
+        if (updateError) {
+          if (updateError.code === 'PGRST116') {
+            // Concurrent update detected, retry once
+            return await leaveRoom(roomId);
+          }
+          throw updateError;
+        }
       }
 
       await fetchRooms();
@@ -236,17 +251,25 @@ export const useGameRooms = () => {
 
     // Create a unique channel name with user ID and timestamp
     const channelName = `game_rooms_${user.id}_${Date.now()}`;
-    
+
     console.log('Setting up game rooms subscription with channel:', channelName);
-    
+
     // Set up real-time subscription
     const subscription = supabase
       .channel(channelName)
-      .on('postgres_changes', 
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'game_rooms' },
-        (payload) => {
+        async (payload) => {
           console.log('Game rooms updated:', payload);
-          fetchRooms();
+          
+          // If it's a DELETE event, remove the room from the list
+          if (payload.eventType === 'DELETE') {
+            setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
+            return;
+          }
+
+          // For INSERT and UPDATE events, fetch the latest rooms
+          await fetchRooms();
         }
       )
       .subscribe((status) => {
