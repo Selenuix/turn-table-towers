@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +18,7 @@ const Room = () => {
   const [room, setRoom] = useState<any>(null);
   const [players, setPlayers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const subscriptionRef = useRef<any>(null);
 
   const fetchRoom = async () => {
     if (!id) return;
@@ -140,10 +140,19 @@ const Room = () => {
       return;
     }
 
+    if (!id) return;
+
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      console.log('Cleaning up existing room subscription before creating new one');
+      supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
+    }
+
     console.log('Setting up room page for room ID:', id);
     fetchRoom();
 
-    // Create a unique channel name with timestamp to avoid conflicts
+    // Create a unique channel name with user ID and timestamp
     const channelName = `room_${id}_${user.id}_${Date.now()}`;
     
     console.log('Setting up room subscription with channel:', channelName);
@@ -162,9 +171,14 @@ const Room = () => {
         console.log('Room subscription status:', status);
       });
 
+    subscriptionRef.current = subscription;
+
     return () => {
-      console.log('Cleaning up room subscription:', channelName);
-      supabase.removeChannel(subscription);
+      if (subscriptionRef.current) {
+        console.log('Cleaning up room subscription:', channelName);
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
     };
   }, [id, user?.id]);
 

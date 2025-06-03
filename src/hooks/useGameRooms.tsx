@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,7 @@ export const useGameRooms = () => {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  const subscriptionRef = useRef<any>(null);
 
   const fetchRooms = async () => {
     try {
@@ -215,34 +216,46 @@ export const useGameRooms = () => {
   };
 
   useEffect(() => {
-    if (user) {
-      fetchRooms();
+    if (!user?.id) return;
 
-      // Create a truly unique channel name with timestamp to avoid conflicts
-      const channelName = `game_rooms_global_${user.id}_${Date.now()}`;
-      
-      console.log('Setting up game rooms subscription with channel:', channelName);
-      
-      // Set up real-time subscription
-      const subscription = supabase
-        .channel(channelName)
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'game_rooms' },
-          (payload) => {
-            console.log('Game rooms updated:', payload);
-            fetchRooms();
-          }
-        )
-        .subscribe((status) => {
-          console.log('Game rooms subscription status:', status);
-        });
-
-      return () => {
-        console.log('Cleaning up game rooms subscription:', channelName);
-        supabase.removeChannel(subscription);
-      };
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      console.log('Cleaning up existing subscription before creating new one');
+      supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
     }
-  }, [user?.id]); // Only depend on user.id to prevent unnecessary re-subscriptions
+
+    fetchRooms();
+
+    // Create a unique channel name with user ID and timestamp
+    const channelName = `game_rooms_${user.id}_${Date.now()}`;
+    
+    console.log('Setting up game rooms subscription with channel:', channelName);
+    
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel(channelName)
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'game_rooms' },
+        (payload) => {
+          console.log('Game rooms updated:', payload);
+          fetchRooms();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Game rooms subscription status:', status);
+      });
+
+    subscriptionRef.current = subscription;
+
+    return () => {
+      if (subscriptionRef.current) {
+        console.log('Cleaning up game rooms subscription:', channelName);
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
+    };
+  }, [user?.id]);
 
   return {
     rooms,
