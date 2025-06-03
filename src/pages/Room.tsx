@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 const Room = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { joinRoom, leaveRoom } = useGameRooms();
   const { toast } = useToast();
   const [room, setRoom] = useState<any>(null);
@@ -139,10 +139,16 @@ const Room = () => {
   };
 
   useEffect(() => {
-    console.log('Room component mounted, user:', user?.email, 'room ID:', id);
+    console.log('Room component mounted, user:', user?.email, 'authLoading:', authLoading, 'room ID:', id);
     
+    // Wait for auth to finish loading before making decisions
+    if (authLoading) {
+      console.log('Auth still loading, waiting...');
+      return;
+    }
+
     if (!user) {
-      console.log('No user found, redirecting to auth');
+      console.log('No user found after auth loaded, redirecting to auth');
       navigate('/auth');
       return;
     }
@@ -191,7 +197,16 @@ const Room = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [id, user?.id]); // Only depend on id and user.id to prevent infinite loops
+  }, [id, user?.id, authLoading]); // Add authLoading to dependencies
+
+  // Show loading while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

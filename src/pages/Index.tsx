@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ const Index = () => {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   useEffect(() => {
+    // Wait for auth to finish loading before redirecting
     if (!authLoading && !user) {
       navigate('/auth');
     }
@@ -34,7 +34,8 @@ const Index = () => {
       const { data } = await joinRoom(roomId);
       if (data) {
         console.log('Successfully joined room, navigating to:', `/room/${roomId}`);
-        navigate(`/room/${roomId}`);
+        // Use replace to avoid back button issues
+        navigate(`/room/${roomId}`, { replace: true });
       }
     } catch (error) {
       console.error('Error joining room:', error);
@@ -43,12 +44,13 @@ const Index = () => {
 
   const handleEnterRoom = (roomId: string) => {
     console.log('Entering room via navigation:', roomId);
-    navigate(`/room/${roomId}`);
+    // Use replace to avoid back button issues
+    navigate(`/room/${roomId}`, { replace: true });
   };
 
   const handleRoomJoined = (roomId: string) => {
     console.log('Room joined via modal, navigating to:', roomId);
-    navigate(`/room/${roomId}`);
+    navigate(`/room/${roomId}`, { replace: true });
   };
 
   const handleRoomButtonClick = (e: React.MouseEvent, room: any) => {
