@@ -313,251 +313,258 @@ const Room = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Room Info Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardContent className="p-4 text-center">
-                <Users className="w-8 h-8 mx-auto text-blue-400 mb-2" />
-                <div className="text-2xl font-bold text-white">{room.player_ids.length}</div>
-                <div className="text-sm text-slate-300">of {room.max_players} players</div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardContent className="p-4 text-center">
-                <Trophy className="w-8 h-8 mx-auto text-yellow-400 mb-2" />
-                <div className="text-lg font-bold text-white">Standard</div>
-                <div className="text-sm text-slate-300">Game Mode</div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardContent className="p-4 text-center">
-                <Clock className="w-8 h-8 mx-auto text-green-400 mb-2" />
-                <div className="text-lg font-bold text-white">
-                  {Math.floor((Date.now() - new Date(room.created_at).getTime()) / 60000)}m
-                </div>
-                <div className="text-sm text-slate-300">Room Age</div>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Room Info and Actions */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Room Info Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardContent className="p-4 text-center">
+                    <Users className="w-8 h-8 mx-auto text-blue-400 mb-2" />
+                    <div className="text-2xl font-bold text-white">{room.player_ids.length}</div>
+                    <div className="text-sm text-slate-300">of {room.max_players} players</div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardContent className="p-4 text-center">
+                    <Trophy className="w-8 h-8 mx-auto text-yellow-400 mb-2" />
+                    <div className="text-lg font-bold text-white">Standard</div>
+                    <div className="text-sm text-slate-300">Game Mode</div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardContent className="p-4 text-center">
+                    <Clock className="w-8 h-8 mx-auto text-green-400 mb-2" />
+                    <div className="text-lg font-bold text-white">
+                      {Math.floor((Date.now() - new Date(room.created_at).getTime()) / 60000)}m
+                    </div>
+                    <div className="text-sm text-slate-300">Room Age</div>
+                  </CardContent>
+                </Card>
+              </div>
 
-          {/* Room Status */}
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-white flex items-center">
-                  <Settings className="w-5 h-5 mr-2" />
-                  Room Information
-                </CardTitle>
-                <Badge 
-                  className={
-                    room.status === 'waiting' 
-                      ? 'bg-green-500/20 text-green-400 border-green-500/30' 
-                      : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                  }
-                >
-                  {room.status === 'waiting' ? 'Waiting for Players' : 'Game in Progress'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300">
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span>Room Code:</span>
-                    <span className="font-mono font-bold text-blue-400">{room.room_code}</span>
+              {/* Room Status */}
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-white flex items-center">
+                      <Settings className="w-5 h-5 mr-2" />
+                      Room Information
+                    </CardTitle>
+                    <Badge 
+                      className={
+                        room.status === 'waiting' 
+                          ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                          : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                      }
+                    >
+                      {room.status === 'waiting' ? 'Waiting for Players' : 'Game in Progress'}
+                    </Badge>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Created:</span>
-                    <span>{new Date(room.created_at).toLocaleString()}</span>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300">
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span>Room Code:</span>
+                        <span className="font-mono font-bold text-blue-400">{room.room_code}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Created:</span>
+                        <span>{new Date(room.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span>Owner:</span>
+                        <span className="text-yellow-400">
+                          {players.find(p => p.id === room.owner_id)?.username || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Max Players:</span>
+                        <span>{room.max_players}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span>Owner:</span>
-                    <span className="text-yellow-400">
-                      {players.find(p => p.id === room.owner_id)?.username || 'Unknown'}
-                    </span>
+                  <div className="flex space-x-2 mt-6">
+                    <Button
+                      onClick={copyInviteLink}
+                      variant="outline"
+                      className="border-purple-500 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 font-semibold py-3 px-8 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy Invite Link
+                    </Button>
+                    {isGameInProgress && (
+                      <Button
+                        variant="outline"
+                        className="border-blue-600 text-blue-400 hover:bg-blue-600/10"
+                      >
+                        <Shuffle className="w-4 h-4 mr-2" />
+                        View Game
+                      </Button>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span>Max Players:</span>
-                    <span>{room.max_players}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex space-x-2 mt-6">
-                <Button
-                  onClick={copyInviteLink}
-                  variant="outline"
-                  className="border-purple-500 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 font-semibold py-3 px-8 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
-                >
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copy Invite Link
-                </Button>
-                {isGameInProgress && (
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex justify-center space-x-4">
+                {!isPlayerInRoom ? (
                   <Button
-                    variant="outline"
-                    className="border-blue-600 text-blue-400 hover:bg-blue-600/10"
+                    onClick={handleJoinRoom}
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                    disabled={room.player_ids.length >= room.max_players || room.status !== 'waiting'}
                   >
-                    <Shuffle className="w-4 h-4 mr-2" />
-                    View Game
+                    <Users className="w-4 h-4 mr-2" />
+                    {room.player_ids.length >= room.max_players ? 'Room Full' : 'Join Game'}
                   </Button>
+                ) : (
+                  <div className="flex space-x-4">
+                    {canStartGame && (
+                      <Button
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                        onClick={handleStartGame}
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Start Game
+                      </Button>
+                    )}
+                    
+                    {isGameInProgress && (
+                      <Button
+                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                        onClick={() => {
+                          toast({
+                            title: "Game Active",
+                            description: "Game functionality will be implemented next!",
+                          });
+                        }}
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Continue Game
+                      </Button>
+                    )}
+                    
+                    <Button
+                      onClick={handleLeaveRoom}
+                      variant="outline"
+                      className="border-red-500 text-red-400 hover:bg-red-500/10"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Leave Room
+                    </Button>
+                  </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Players List */}
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white">Players ({players.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {players
-                  .sort((a, b) => {
-                    // Room owner always comes first
-                    if (a.id === room.owner_id) return -1;
-                    if (b.id === room.owner_id) return 1;
-                    // Then sort by username/email
-                    const aName = a.username || a.email || '';
-                    const bName = b.username || b.email || '';
-                    return aName.localeCompare(bName);
-                  })
-                  .map((player) => (
-                  <div
-                    key={player.id}
-                    className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg border border-slate-600/20"
-                  >
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
-                        {player.username?.[0]?.toUpperCase() || player.email?.[0]?.toUpperCase() || 'U'}
-                      </div>
-                      <div>
+              {/* Game Requirements */}
+              {isPlayerInRoom && room.status === 'waiting' && (
+                <Card className="bg-blue-500/10 border-blue-500/30">
+                  <CardContent className="p-6">
+                    <div className="text-center text-blue-300">
+                      {room.player_ids.length < 2 ? (
+                        <div>
+                          <h3 className="font-semibold mb-2">Need More Players</h3>
+                          <p>Waiting for at least 2 players to start the game. Share the room code <span className="font-mono bg-blue-500/20 px-2 py-1 rounded">{room.room_code}</span> with your friends!</p>
+                        </div>
+                      ) : isOwner ? (
+                        <div>
+                          <h3 className="font-semibold mb-2">Ready to Start!</h3>
+                          <p>All players are ready. Click "Start Game" when everyone is prepared.</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <h3 className="font-semibold mb-2">Waiting for Host</h3>
+                          <p>Waiting for the room owner to start the game...</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Right Column - Players List */}
+            <div className="lg:col-span-1">
+              <Card className="bg-slate-800/50 border-slate-700 sticky top-6">
+                <CardHeader>
+                  <CardTitle className="text-white">Players ({players.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {players
+                      .sort((a, b) => {
+                        // Room owner always comes first
+                        if (a.id === room.owner_id) return -1;
+                        if (b.id === room.owner_id) return 1;
+                        // Then sort by username/email
+                        const aName = a.username || a.email || '';
+                        const bName = b.username || b.email || '';
+                        return aName.localeCompare(bName);
+                      })
+                      .map((player) => (
+                      <div
+                        key={player.id}
+                        className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg border border-slate-600/20"
+                      >
                         <div className="flex items-center">
-                          <span className="text-white font-medium mr-2">
-                            {player.username || player.email?.split('@')[0] || 'Anonymous'}
-                          </span>
-                          {player.id === room.owner_id && (
-                            <Crown className="w-4 h-4 text-yellow-400" />
+                          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                            {player.username?.[0]?.toUpperCase() || player.email?.[0]?.toUpperCase() || 'U'}
+                          </div>
+                          <div>
+                            <div className="flex items-center">
+                              <span className="text-white font-medium mr-2">
+                                {player.username || player.email?.split('@')[0] || 'Anonymous'}
+                              </span>
+                              {player.id === room.owner_id && (
+                                <Crown className="w-4 h-4 text-yellow-400" />
+                              )}
+                            </div>
+                            <div className="text-sm text-slate-400">
+                              {player.id === room.owner_id ? 'Room Owner' : 'Player'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {player.id === user?.id && (
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                              You
+                            </Badge>
+                          )}
+                          {isGameInProgress && (
+                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                              In Game
+                            </Badge>
                           )}
                         </div>
-                        <div className="text-sm text-slate-400">
-                          {player.id === room.owner_id ? 'Room Owner' : 'Player'}
+                      </div>
+                    ))}
+                    
+                    {/* Empty slots */}
+                    {Array.from({ length: room.max_players - players.length }, (_, index) => (
+                      <div
+                        key={`empty-${index}`}
+                        className="flex items-center p-4 bg-slate-700/10 rounded-lg border-2 border-dashed border-slate-600"
+                      >
+                        <div className="w-10 h-10 bg-slate-600 rounded-full flex items-center justify-center text-slate-400 mr-3">
+                          ?
+                        </div>
+                        <div>
+                          <div className="text-slate-400">Waiting for player...</div>
+                          <div className="text-xs text-slate-500">Share the room code to invite friends</div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {player.id === user?.id && (
-                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                          You
-                        </Badge>
-                      )}
-                      {isGameInProgress && (
-                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                          In Game
-                        </Badge>
-                      )}
-                    </div>
+                    ))}
                   </div>
-                ))}
-                
-                {/* Empty slots */}
-                {Array.from({ length: room.max_players - players.length }, (_, index) => (
-                  <div
-                    key={`empty-${index}`}
-                    className="flex items-center p-4 bg-slate-700/10 rounded-lg border-2 border-dashed border-slate-600"
-                  >
-                    <div className="w-10 h-10 bg-slate-600 rounded-full flex items-center justify-center text-slate-400 mr-3">
-                      ?
-                    </div>
-                    <div>
-                      <div className="text-slate-400">Waiting for player...</div>
-                      <div className="text-xs text-slate-500">Share the room code to invite friends</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Actions */}
-          <div className="flex justify-center space-x-4">
-            {!isPlayerInRoom ? (
-              <Button
-                onClick={handleJoinRoom}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                disabled={room.player_ids.length >= room.max_players || room.status !== 'waiting'}
-              >
-                <Users className="w-4 h-4 mr-2" />
-                {room.player_ids.length >= room.max_players ? 'Room Full' : 'Join Game'}
-              </Button>
-            ) : (
-              <div className="flex space-x-4">
-                {canStartGame && (
-                  <Button
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                    onClick={handleStartGame}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Start Game
-                  </Button>
-                )}
-                
-                {isGameInProgress && (
-                  <Button
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                    onClick={() => {
-                      toast({
-                        title: "Game Active",
-                        description: "Game functionality will be implemented next!",
-                      });
-                    }}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Continue Game
-                  </Button>
-                )}
-                
-                <Button
-                  onClick={handleLeaveRoom}
-                  variant="outline"
-                  className="border-red-500 text-red-400 hover:bg-red-500/10"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Leave Room
-                </Button>
-              </div>
-            )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
-
-          {/* Game Requirements */}
-          {isPlayerInRoom && room.status === 'waiting' && (
-            <Card className="bg-blue-500/10 border-blue-500/30">
-              <CardContent className="p-6">
-                <div className="text-center text-blue-300">
-                  {room.player_ids.length < 2 ? (
-                    <div>
-                      <h3 className="font-semibold mb-2">Need More Players</h3>
-                      <p>Waiting for at least 2 players to start the game. Share the room code <span className="font-mono bg-blue-500/20 px-2 py-1 rounded">{room.room_code}</span> with your friends!</p>
-                    </div>
-                  ) : isOwner ? (
-                    <div>
-                      <h3 className="font-semibold mb-2">Ready to Start!</h3>
-                      <p>All players are ready. Click "Start Game" when everyone is prepared.</p>
-                    </div>
-                  ) : (
-                    <div>
-                      <h3 className="font-semibold mb-2">Waiting for Host</h3>
-                      <p>Waiting for the room owner to start the game...</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </main>
     </div>
