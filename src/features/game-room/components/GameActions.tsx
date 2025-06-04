@@ -26,7 +26,6 @@ export const GameActions = ({
   const [selectedStoredCards, setSelectedStoredCards] = useState<number[]>([]);
   const [cardsRevealed, setCardsRevealed] = useState(false);
   const [confirmingAttack, setConfirmingAttack] = useState(false);
-  const [drawnCardValue, setDrawnCardValue] = useState<number | null>(null);
 
   if (!isPlayerTurn) {
     return (
@@ -51,12 +50,6 @@ export const GameActions = ({
     setSelectedTarget(targetId);
 
     if (selectedAction === 'attack') {
-      // Draw a card first
-      const result = await onAction('draw_attack_card', { targetId });
-      if (result?.data?.drawnCardValue) {
-        setDrawnCardValue(result.data.drawnCardValue);
-      }
-
       // If there are selected stored cards and they haven't been revealed yet,
       // enter the confirmation flow instead of immediately attacking
       if (selectedStoredCards.length > 0 && !cardsRevealed) {
@@ -95,7 +88,6 @@ export const GameActions = ({
     setSelectedStoredCards([]);
     setCardsRevealed(false);
     setConfirmingAttack(false);
-    setDrawnCardValue(null);
   };
 
   const toggleStoredCard = (index: number) => {
@@ -168,19 +160,14 @@ export const GameActions = ({
               <div className="mt-3 p-2 bg-slate-600/50 rounded border border-slate-500">
                 <h5 className="text-white text-xs font-medium mb-1">Attack Power:</h5>
                 <div className="flex flex-wrap gap-2">
-                  {drawnCardValue !== null && (
-                    <div className="text-xs bg-blue-700 px-2 py-1 rounded text-white">
-                      Drawn Card: {drawnCardValue}
-                    </div>
-                  )}
                   {selectedStoredCards.map((index) => (
                     <div key={index} className="text-xs bg-slate-700 px-2 py-1 rounded text-white">
                       Stored: {getCardValue(currentPlayerState.stored_cards[index])}
                     </div>
                   ))}
-                  {drawnCardValue !== null && (
+                  {selectedStoredCards.length > 0 && (
                     <div className="text-xs bg-green-700 px-2 py-1 rounded text-white">
-                      Total: {drawnCardValue + selectedStoredCards.reduce((sum, index) =>
+                      Total: {selectedStoredCards.reduce((sum, index) =>
                         sum + getCardValue(currentPlayerState.stored_cards[index]), 0)}
                     </div>
                   )}

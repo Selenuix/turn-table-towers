@@ -51,7 +51,9 @@ export const useGameState = (roomId: string, userId: string) => {
           discard_pile: gameStateResult.data.discard_pile,
           created_at: gameStateResult.data.created_at,
           updated_at: gameStateResult.data.updated_at,
-          player_states: (gameStateResult.data.player_states as Record<string, any>) || {},
+          player_states: typeof gameStateResult.data.player_states === 'string' 
+            ? JSON.parse(gameStateResult.data.player_states)
+            : gameStateResult.data.player_states,
           status: gameRoomResult.data.status as RoomStatus
         };
         if (isMountedRef.current) {
@@ -260,13 +262,16 @@ export const useGameState = (roomId: string, userId: string) => {
             });
           }
 
-          // Check if attack is successful
+          // Calculate shield value
           const shieldValue = getCardValue(targetPlayerState.shield);
-          const isSuccessful = totalAttackValue > shieldValue;
 
-          // Update target's HP if attack is successful
-          if (isSuccessful) {
-            targetPlayerState.hp -= 1;
+          // Calculate damage (attack - shield)
+          const damage = Math.max(0, totalAttackValue - shieldValue);
+
+          // Update target's HP if there is damage
+          if (damage > 0) {
+            // Ensure HP doesn't go below 0
+            targetPlayerState.hp = Math.max(0, targetPlayerState.hp - damage);
             
             // Discard target's stored cards if hit
             if (targetPlayerState.stored_cards.length > 0) {
@@ -289,7 +294,7 @@ export const useGameState = (roomId: string, userId: string) => {
           updatedGameState.deck = updatedGameState.deck.slice(1);
 
           // Check if target is eliminated
-          if (targetPlayerState.hp <= 0) {
+          if (targetPlayerState.hp === 0) {
             targetPlayerState.eliminated = true;
           }
 
@@ -300,6 +305,17 @@ export const useGameState = (roomId: string, userId: string) => {
 
           if (activePlayers.length === 1) {
             updatedGameState.status = 'finished';
+            
+            // Update game room status immediately
+            const { error: roomError } = await supabase
+              .from('game_rooms')
+              .update({ 
+                status: 'finished',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', roomId);
+
+            if (roomError) throw roomError;
           } else {
             // Find next active player
             const currentPlayerIndex = Object.keys(updatedGameState.player_states).findIndex(id => id === userId);
@@ -348,7 +364,12 @@ export const useGameState = (roomId: string, userId: string) => {
         if (roomError) throw roomError;
       }
 
-      setGameState(updatedGameState);
+      // Parse the player states back to an object before setting state
+      const parsedGameState = {
+        ...updatedGameState,
+        player_states: JSON.parse(JSON.stringify(updatedGameState.player_states))
+      };
+      setGameState(parsedGameState);
     } catch (error) {
       console.error('Error performing game action:', error);
       throw error;
