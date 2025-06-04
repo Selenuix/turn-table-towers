@@ -15,15 +15,16 @@ export const useGameState = (roomId: string, userId: string) => {
 
     const fetchGameState = async () => {
       try {
+        // Use .maybeSingle() instead of .single() to handle cases with no data
         const { data, error } = await supabase
           .from('game_states')
           .select('*')
           .eq('room_id', roomId)
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
         
-        // Transform the data to match our GameState interface
+        // Transform the data to match our GameState interface if data exists
         if (data) {
           const transformedGameState: GameState = {
             id: data.id,
@@ -36,6 +37,9 @@ export const useGameState = (roomId: string, userId: string) => {
             player_states: (data.player_states as Record<string, any>) || {}
           };
           setGameState(transformedGameState);
+        } else {
+          // No game state found - this is expected if the game hasn't started yet
+          setGameState(null);
         }
       } catch (err) {
         console.error('Error fetching game state:', err);
@@ -81,6 +85,8 @@ export const useGameState = (roomId: string, userId: string) => {
               player_states: (newData.player_states as Record<string, any>) || {}
             };
             setGameState(transformedGameState);
+          } else if (payload.eventType === 'DELETE') {
+            setGameState(null);
           }
         }
       )
