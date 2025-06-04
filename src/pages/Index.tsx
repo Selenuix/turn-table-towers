@@ -1,28 +1,31 @@
-import {useEffect, useState} from "react";
-import {useNavigate} from "react-router-dom";
-import {Button} from "@/components/ui/button";
-import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
-import {Badge} from "@/components/ui/badge";
-import {Clock, Home, LogOut, Plus, Trophy, User, Users} from "lucide-react";
-import {useAuth} from "@/hooks/useAuth";
-import {useGameRooms} from "@/hooks/useGameRooms";
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { useAuthContext } from "@/hooks/useAuthContext";
+import { useOptimizedGameRooms } from "@/hooks/useOptimizedGameRooms";
+import { LobbyHeader } from "@/components/lobby/LobbyHeader";
+import { RoomGrid } from "@/components/lobby/RoomGrid";
+import { LobbyStats } from "@/components/lobby/LobbyStats";
 import CreateRoomModal from "@/components/CreateRoomModal";
 import JoinRoomModal from "@/components/JoinRoomModal";
 
 const Index = () => {
   const navigate = useNavigate();
-  const {user, signOut, loading: authLoading} = useAuth();
-  const {rooms, loading: roomsLoading, joinRoom} = useGameRooms();
+  const { user, signOut, loading: authLoading } = useAuthContext();
+  const { rooms, loading: roomsLoading, joinRoom } = useOptimizedGameRooms();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  const [username, setUsername] = useState();
+  const [username, setUsername] = useState<string>("");
 
   useEffect(() => {
-    // Wait for auth to finish loading before redirecting
     if (!authLoading && !user) {
       navigate('/auth');
     }
-    setUsername(user?.identities[0].identity_data.username);
+    if (user) {
+      setUsername(user.identities?.[0]?.identity_data?.username || user.email?.split('@')[0] || 'User');
+    }
   }, [user, authLoading, navigate]);
 
   const handleSignOut = async () => {
@@ -30,102 +33,41 @@ const Index = () => {
     navigate('/auth');
   };
 
-  const handleJoinRoom = async (roomId: string) => {
-    console.log('Attempting to join room:', roomId);
-    try {
-      const {data} = await joinRoom(roomId);
-      if (data) {
-        console.log('Successfully joined room, navigating to:', `/room/${roomId}`);
-        // Use replace to avoid back button issues
-        navigate(`/room/${roomId}`, {replace: true});
+  const handleRoomAction = async (roomId: string, isInRoom: boolean) => {
+    if (isInRoom) {
+      navigate(`/room/${roomId}`);
+    } else {
+      try {
+        const { data } = await joinRoom(roomId);
+        if (data) {
+          navigate(`/room/${roomId}`);
+        }
+      } catch (error) {
+        console.error('Error joining room:', error);
       }
-    } catch (error) {
-      console.error('Error joining room:', error);
     }
-  };
-
-  const handleEnterRoom = (roomId: string) => {
-    console.log('Entering room via navigation:', roomId);
-    // Use replace to avoid back button issues
-    navigate(`/room/${roomId}`, {replace: true});
   };
 
   const handleRoomJoined = (roomId: string) => {
-    console.log('Room joined via modal, navigating to:', roomId);
-    navigate(`/room/${roomId}`, {replace: true});
+    navigate(`/room/${roomId}`);
   };
-
-  const handleRoomButtonClick = (e: React.MouseEvent, room: any) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const isPlayerInRoom = room.player_ids.includes(user?.id || '');
-    console.log('Button clicked for room:', room.id, 'User in room:', isPlayerInRoom);
-
-    if (isPlayerInRoom) {
-      handleEnterRoom(room.id);
-    } else {
-      handleJoinRoom(room.id);
-    }
-  };
-
-  function getStatusColor(status: string) {
-    switch (status) {
-      case "waiting":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "in_progress":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
-    }
-  }
 
   if (authLoading) {
-    return (<div
-        className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
-      </div>);
+      </div>
+    );
   }
 
-  return (<div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Header */}
-      <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-8">
-              <h1
-                className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                CardMaster Arena
-              </h1>
-              <nav className="hidden md:flex space-x-6">
-                <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700/50">
-                  <Home className="w-4 h-4 mr-2"/>
-                  Home
-                </Button>
-                <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700/50">
-                  <User className="w-4 h-4 mr-2"/>
-                  Profile
-                </Button>
-              </nav>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-slate-300 hidden sm:block">
-                Welcome, {username}
-              </span>
-              <Button
-                variant="ghost"
-                onClick={handleSignOut}
-                className="text-slate-300 hover:text-red-400 hover:bg-red-500/10"
-              >
-                <LogOut className="w-4 h-4 mr-2"/>
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+  if (!user) {
+    return null;
+  }
 
-      {/* Main Content */}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <LobbyHeader username={username} onSignOut={handleSignOut} />
+
       <main className="container mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="text-center mb-12">
@@ -159,90 +101,23 @@ const Index = () => {
         {/* Game Rooms Grid */}
         <div className="mb-8">
           <h3 className="text-2xl font-bold text-white mb-6">Active Game Rooms</h3>
-          {roomsLoading ? (<div className="text-center text-slate-300">Loading rooms...</div>) : rooms.length === 0 ? (
+          {roomsLoading ? (
+            <div className="text-center text-slate-300">Loading rooms...</div>
+          ) : rooms.length === 0 ? (
             <div className="text-center text-slate-300">
               <p className="text-lg mb-4">No active rooms yet</p>
               <p>Be the first to create a game room!</p>
-            </div>) : (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {rooms.map((room) => (<Card key={room.id}
-                                          className="bg-slate-800/50 border-slate-700 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/20">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg font-bold text-white truncate">
-                        {room.name || `Room ${room.room_code}`}
-                      </CardTitle>
-                      <Badge className={`${getStatusColor(room.status)} border`}>
-                        {room.status === "waiting" ? "Open" : "Playing"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center text-slate-300">
-                        <Users className="w-4 h-4 mr-2"/>
-                        <span className="text-sm">
-                          {room.player_ids.length}/{room.max_players} players
-                        </span>
-                      </div>
-                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
-                        {room.room_code}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center text-slate-300">
-                      <Trophy className="w-4 h-4 mr-2"/>
-                      <span className="text-sm">Standard Game</span>
-                    </div>
-
-                    <div className="flex items-center text-slate-300">
-                      <Clock className="w-4 h-4 mr-2"/>
-                      <span className="text-sm">Created {new Date(room.created_at).toLocaleDateString()}</span>
-                    </div>
-
-                    <div className="pt-2">
-                      <Button
-                        type="button"
-                        className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium"
-                        disabled={room.status === "in_progress" || room.player_ids.length >= room.max_players}
-                        onClick={(e) => handleRoomButtonClick(e, room)}
-                      >
-                        {room.status === "in_progress" ? "Game in Progress" : room.player_ids.length >= room.max_players ? "Room Full" : room.player_ids.includes(user?.id || '') ? "Enter Room" : "Join Game"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>))}
-            </div>)}
+            </div>
+          ) : (
+            <RoomGrid 
+              rooms={rooms} 
+              currentUserId={user.id} 
+              onRoomAction={handleRoomAction}
+            />
+          )}
         </div>
 
-        {/* Statistics Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6 text-center">
-              <div className="text-3xl font-bold text-blue-400 mb-2">
-                {rooms.length}
-              </div>
-              <div className="text-slate-300">Active Rooms</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6 text-center">
-              <div className="text-3xl font-bold text-green-400 mb-2">
-                {rooms.reduce((acc, room) => acc + room.player_ids.length, 0)}
-              </div>
-              <div className="text-slate-300">Players Online</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6 text-center">
-              <div className="text-3xl font-bold text-purple-400 mb-2">
-                {rooms.filter(room => room.status === "waiting").length}
-              </div>
-              <div className="text-slate-300">Open Games</div>
-            </CardContent>
-          </Card>
-        </div>
+        <LobbyStats rooms={rooms} />
       </main>
 
       {/* Modals */}
@@ -255,7 +130,8 @@ const Index = () => {
         onClose={() => setIsJoinModalOpen(false)}
         onRoomJoined={handleRoomJoined}
       />
-    </div>);
+    </div>
+  );
 };
 
 export default Index;

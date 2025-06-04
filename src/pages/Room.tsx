@@ -1,11 +1,11 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
-import { useGameRooms } from '@/hooks/useGameRooms';
+import { useOptimizedGameRooms } from '@/hooks/useOptimizedGameRooms';
+import { useAuthContext } from '@/hooks/useAuthContext';
 import { RoomHeader } from '@/features/game-room/components/RoomHeader';
-import { RoomInfo } from '@/features/game-room/components/RoomInfo';
-import { RoomActions } from '@/features/game-room/components/RoomActions';
-import { PlayerList } from '@/features/game-room/components/PlayerList';
+import { RoomContent } from '@/features/game-room/components/RoomContent';
 import { GameRoom, Player } from '@/features/game-room/types';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -13,13 +13,13 @@ export default function Room() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { 
-    getRoom, 
-    getPlayers, 
-    startGame, 
+  const { user, loading: authLoading } = useAuthContext();
+  const {
+    getRoom,
+    getPlayers,
+    startGame,
     leaveRoom,
-    currentUser 
-  } = useGameRooms();
+  } = useOptimizedGameRooms();
 
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -27,20 +27,28 @@ export default function Room() {
   const subscriptionRef = useRef<any>(null);
 
   useEffect(() => {
+    // First check if authentication is still loading
+    if (authLoading) {
+      return;
+    }
+
+    // If not logged in, redirect to auth page
+    if (!user) {
+      navigate('/auth', { replace: true });
+      return;
+    }
+
+    // If logged in but no room ID, redirect to lobby
+    if (!id) {
+      navigate('/', { replace: true });
+      return;
+    }
 
     const loadRoom = async () => {
-      if (!id) {
-        console.log('No id provided');
-        return;
-      }
-      
       try {
-        console.log('Fetching room data for ID:', id);
         const roomData = await getRoom(id);
-        console.log('Room data received:', roomData);
-
+        
         if (!roomData) {
-          console.log('Room not found');
           toast({
             title: 'Error',
             description: 'Room not found',
@@ -52,9 +60,7 @@ export default function Room() {
 
         setRoom(roomData);
         
-        console.log('Fetching players for room:', roomData.player_ids);
         const playersData = await getPlayers(roomData.player_ids);
-        console.log('Players data received:', playersData);
         setPlayers(playersData);
       } catch (error) {
         console.error('Error loading room:', error);
@@ -63,60 +69,58 @@ export default function Room() {
           description: 'Failed to load room data',
           variant: 'destructive',
         });
+        navigate('/');
       } finally {
-        console.log('Setting loading to false');
         setIsLoading(false);
       }
     };
 
     loadRoom();
 
-    // Set up real-time subscription
-    if (id) {
-      const channelName = `room_${id}_${Date.now()}`;
-      
-      const subscription = supabase
-        .channel(channelName)
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
-          async (payload) => {
-            if (payload.eventType === 'DELETE') {
-              toast({
-                title: 'Room Closed',
-                description: 'The room has been closed',
-              });
-              navigate('/');
-              return;
-            }
-
-            const updatedRoom = payload.new as GameRoom;
-            setRoom(updatedRoom);
-            
-            const playersData = await getPlayers(updatedRoom.player_ids);
-            setPlayers(playersData);
-
-            // If the current user is no longer in the room, navigate back to lobby
-            if (!updatedRoom.player_ids.includes(currentUser?.id || '')) {
-              toast({
-                title: 'Left Room',
-                description: 'You have left the room',
-              });
-              navigate('/');
-            }
+    // Set up real-time subscription with unique channel name
+    const channelName = `room_${id}_${user.id}_${Date.now()}`;
+    
+    const subscription = supabase
+      .channel(channelName)
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
+        async (payload) => {
+          if (payload.eventType === 'DELETE') {
+            toast({
+              title: 'Room Closed',
+              description: 'The room has been closed',
+            });
+            navigate('/');
+            return;
           }
-        )
-        .subscribe();
 
-      subscriptionRef.current = subscription;
+          const updatedRoom = payload.new as GameRoom;
+          setRoom(updatedRoom);
+          
+          const playersData = await getPlayers(updatedRoom.player_ids);
+          setPlayers(playersData);
 
-      return () => {
-        if (subscriptionRef.current) {
-          supabase.removeChannel(subscriptionRef.current);
-          subscriptionRef.current = null;
+          // If the current user is no longer in the room, navigate back to lobby
+          if (!updatedRoom.player_ids.includes(user?.id || '')) {
+            toast({
+              title: 'Left Room',
+              description: 'You have left the room',
+            });
+            navigate('/');
+          }
         }
-      };
-    }
-  }, [id, getRoom, getPlayers, toast, navigate, currentUser?.id]);
+      )
+      .subscribe();
+
+    subscriptionRef.current = subscription;
+
+    return () => {
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
+    };
+  }, [id, user, authLoading, getRoom, getPlayers, toast, navigate]);
 
   const handleStartGame = async () => {
     if (!room) return;
@@ -164,10 +168,18 @@ export default function Room() {
     });
   };
 
-  if (isLoading || !room) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user || !room) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading room data...</div>
       </div>
     );
   }
@@ -182,31 +194,15 @@ export default function Room() {
           onCopyRoomCode={handleCopyInviteLink} 
         />
         
-        <div className="mt-8 grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <RoomInfo 
-              room={room}
-              players={players}
-              isGameInProgress={isGameInProgress}
-              onCopyInviteLink={handleCopyInviteLink}
-            />
-            <RoomActions 
-              room={room}
-              currentUserId={currentUser?.id || ''}
-              onStartGame={handleStartGame}
-              onLeaveRoom={handleLeaveRoom}
-            />
-          </div>
-          
-          <div className="lg:col-span-1">
-            <PlayerList 
-              room={room}
-              players={players}
-              currentUserId={currentUser?.id || ''}
-              isGameInProgress={isGameInProgress}
-            />
-          </div>
-        </div>
+        <RoomContent
+          room={room}
+          players={players}
+          currentUserId={user.id}
+          isGameInProgress={isGameInProgress}
+          onStartGame={handleStartGame}
+          onLeaveRoom={handleLeaveRoom}
+          onCopyInviteLink={handleCopyInviteLink}
+        />
       </div>
     </div>
   );

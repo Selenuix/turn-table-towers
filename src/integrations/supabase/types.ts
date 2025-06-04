@@ -45,6 +45,47 @@ export type Database = {
         }
         Relationships: []
       }
+      game_states: {
+        Row: {
+          created_at: string
+          current_player_id: string | null
+          deck: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile: Database["public"]["CompositeTypes"]["card"][]
+          id: string
+          player_states: Json
+          room_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_player_id?: string | null
+          deck: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile?: Database["public"]["CompositeTypes"]["card"][]
+          id?: string
+          player_states: Json
+          room_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_player_id?: string | null
+          deck?: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile?: Database["public"]["CompositeTypes"]["card"][]
+          id?: string
+          player_states?: Json
+          room_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_states_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -75,13 +116,36 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      initialize_game_state: {
+        Args: { p_room_id: string }
+        Returns: {
+          created_at: string
+          current_player_id: string | null
+          deck: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile: Database["public"]["CompositeTypes"]["card"][]
+          id: string
+          player_states: Json
+          room_id: string | null
+          updated_at: string
+        }
+      }
       join_game_room: {
         Args: {
           p_room_id: string
           p_current_player_ids: string[]
           p_new_player_ids: string[]
         }
-        Returns: Database['public']['Tables']['game_rooms']['Row']
+        Returns: {
+          created_at: string
+          id: string
+          max_players: number
+          name: string | null
+          owner_id: string
+          player_ids: string[] | null
+          room_code: string
+          status: string
+          updated_at: string
+        }
       }
       leave_game_room: {
         Args: {
@@ -90,14 +154,72 @@ export type Database = {
           p_new_player_ids: string[]
           p_new_owner_id: string
         }
-        Returns: Database['public']['Tables']['game_rooms']['Row']
+        Returns: {
+          created_at: string
+          id: string
+          max_players: number
+          name: string | null
+          owner_id: string
+          player_ids: string[] | null
+          room_code: string
+          status: string
+          updated_at: string
+        }
+      }
+      start_game: {
+        Args: { p_room_id: string }
+        Returns: {
+          created_at: string
+          current_player_id: string | null
+          deck: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile: Database["public"]["CompositeTypes"]["card"][]
+          id: string
+          player_states: Json
+          room_id: string | null
+          updated_at: string
+        }
+      }
+      update_player_cards: {
+        Args: {
+          p_room_id: string
+          p_player_id: string
+          p_shield_index: number
+          p_hp_indices: number[]
+        }
+        Returns: {
+          created_at: string
+          current_player_id: string | null
+          deck: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile: Database["public"]["CompositeTypes"]["card"][]
+          id: string
+          player_states: Json
+          room_id: string | null
+          updated_at: string
+        }
       }
     }
     Enums: {
-      [_ in never]: never
+      card_rank:
+        | "ace"
+        | "2"
+        | "3"
+        | "4"
+        | "5"
+        | "6"
+        | "7"
+        | "8"
+        | "9"
+        | "10"
+        | "jack"
+        | "queen"
+        | "king"
+      card_suit: "hearts" | "diamonds" | "clubs" | "spades"
     }
     CompositeTypes: {
-      [_ in never]: never
+      card: {
+        suit: Database["public"]["Enums"]["card_suit"] | null
+        rank: Database["public"]["Enums"]["card_rank"] | null
+      }
     }
   }
 }
@@ -209,6 +331,23 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      card_rank: [
+        "ace",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "jack",
+        "queen",
+        "king",
+      ],
+      card_suit: ["hearts", "diamonds", "clubs", "spades"],
+    },
   },
 } as const
