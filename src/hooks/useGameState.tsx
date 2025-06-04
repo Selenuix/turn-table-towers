@@ -24,8 +24,14 @@ export const useGameState = (roomId: string, userId: string) => {
         // Transform the data to match our GameState interface
         if (data) {
           const transformedGameState: GameState = {
-            ...data,
-            player_states: data.player_states as Record<string, PlayerState>
+            id: data.id,
+            room_id: data.room_id,
+            current_player_id: data.current_player_id,
+            deck: data.deck,
+            discard_pile: data.discard_pile,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            player_states: (data.player_states as Record<string, any>) || {}
           };
           setGameState(transformedGameState);
         }
@@ -48,8 +54,14 @@ export const useGameState = (roomId: string, userId: string) => {
         (payload) => {
           if (payload.new) {
             const transformedGameState: GameState = {
-              ...payload.new,
-              player_states: payload.new.player_states as Record<string, PlayerState>
+              id: payload.new.id,
+              room_id: payload.new.room_id,
+              current_player_id: payload.new.current_player_id,
+              deck: payload.new.deck,
+              discard_pile: payload.new.discard_pile,
+              created_at: payload.new.created_at,
+              updated_at: payload.new.updated_at,
+              player_states: (payload.new.player_states as Record<string, any>) || {}
             };
             setGameState(transformedGameState);
           }
