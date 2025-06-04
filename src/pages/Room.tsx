@@ -25,6 +25,7 @@ export default function Room() {
   const [isLoading, setIsLoading] = useState(true);
   const subscriptionRef = useRef<any>(null);
   const channelNameRef = useRef<string>('');
+  const isSubscribedRef = useRef<boolean>(false);
 
   useEffect(() => {
     // First check if authentication is still loading
@@ -78,10 +79,11 @@ export default function Room() {
     loadRoom();
 
     // Clean up any existing subscription before creating a new one
-    if (subscriptionRef.current) {
+    if (subscriptionRef.current && isSubscribedRef.current) {
       console.log('Cleaning up existing room subscription:', channelNameRef.current);
       supabase.removeChannel(subscriptionRef.current);
       subscriptionRef.current = null;
+      isSubscribedRef.current = false;
     }
 
     // Set up real-time subscription with unique channel name
@@ -90,8 +92,9 @@ export default function Room() {
     
     console.log('Creating room subscription:', channelName);
     
-    const subscription = supabase
-      .channel(channelName)
+    const channel = supabase.channel(channelName);
+    
+    channel
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
         async (payload) => {
@@ -122,19 +125,25 @@ export default function Room() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Room subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true;
+        }
+      });
 
-    subscriptionRef.current = subscription;
+    subscriptionRef.current = channel;
 
     return () => {
-      if (subscriptionRef.current) {
+      if (subscriptionRef.current && isSubscribedRef.current) {
         console.log('Cleaning up room subscription on unmount:', channelNameRef.current);
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
+        isSubscribedRef.current = false;
         channelNameRef.current = '';
       }
     };
-  }, [id, user, authLoading, getRoom, getPlayers, toast, navigate]);
+  }, [id, user?.id, authLoading, getRoom, getPlayers, toast, navigate]);
 
   const handleStartGame = async () => {
     if (!room) return;
