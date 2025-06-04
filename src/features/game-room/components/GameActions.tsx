@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Player, PlayerState, Card as GameCard } from '../types';
 import { CardComponent } from './CardComponent';
 
