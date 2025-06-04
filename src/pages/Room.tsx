@@ -26,6 +26,7 @@ export default function Room() {
   const subscriptionRef = useRef<any>(null);
   const channelNameRef = useRef<string>('');
   const isSubscribedRef = useRef<boolean>(false);
+  const roomIdRef = useRef<string>('');
 
   useEffect(() => {
     // First check if authentication is still loading
@@ -44,6 +45,9 @@ export default function Room() {
       navigate('/', { replace: true });
       return;
     }
+
+    // Store room ID for cleanup reference
+    roomIdRef.current = id;
 
     const loadRoom = async () => {
       try {
@@ -79,11 +83,12 @@ export default function Room() {
     loadRoom();
 
     // Clean up any existing subscription before creating a new one
-    if (subscriptionRef.current && isSubscribedRef.current) {
+    if (subscriptionRef.current) {
       console.log('Cleaning up existing room subscription:', channelNameRef.current);
       supabase.removeChannel(subscriptionRef.current);
       subscriptionRef.current = null;
       isSubscribedRef.current = false;
+      channelNameRef.current = '';
     }
 
     // Set up real-time subscription with unique channel name
@@ -129,13 +134,15 @@ export default function Room() {
         console.log('Room subscription status:', status);
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true;
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          isSubscribedRef.current = false;
         }
       });
 
     subscriptionRef.current = channel;
 
     return () => {
-      if (subscriptionRef.current && isSubscribedRef.current) {
+      if (subscriptionRef.current) {
         console.log('Cleaning up room subscription on unmount:', channelNameRef.current);
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;

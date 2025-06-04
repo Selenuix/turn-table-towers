@@ -12,6 +12,7 @@ export const useOptimizedGameRooms = () => {
   const { toast } = useToast();
   const subscriptionRef = useRef<any>(null);
   const channelNameRef = useRef<string>('');
+  const isSubscribedRef = useRef<boolean>(false);
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -217,22 +218,18 @@ export const useOptimizedGameRooms = () => {
   }, [user, fetchRooms]);
 
   useEffect(() => {
-    if (!user?.id) {
-      // Clean up any existing subscription when user becomes null
-      if (subscriptionRef.current) {
-        console.log('Cleaning up subscription due to no user');
-        supabase.removeChannel(subscriptionRef.current);
-        subscriptionRef.current = null;
-        channelNameRef.current = '';
-      }
-      return;
-    }
-
-    // Clean up any existing subscription before creating a new one
+    // Clean up any existing subscription first
     if (subscriptionRef.current) {
       console.log('Cleaning up existing subscription:', channelNameRef.current);
       supabase.removeChannel(subscriptionRef.current);
       subscriptionRef.current = null;
+      isSubscribedRef.current = false;
+      channelNameRef.current = '';
+    }
+
+    if (!user?.id) {
+      setLoading(false);
+      return;
     }
 
     // Fetch initial data
@@ -244,8 +241,9 @@ export const useOptimizedGameRooms = () => {
     
     console.log('Creating new subscription:', channelName);
     
-    const subscription = supabase
-      .channel(channelName)
+    const channel = supabase.channel(channelName);
+    
+    channel
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'game_rooms' },
         async (payload) => {
@@ -257,15 +255,23 @@ export const useOptimizedGameRooms = () => {
           await fetchRooms();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true;
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          isSubscribedRef.current = false;
+        }
+      });
 
-    subscriptionRef.current = subscription;
+    subscriptionRef.current = channel;
 
     return () => {
       if (subscriptionRef.current) {
         console.log('Cleaning up subscription on unmount:', channelNameRef.current);
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
+        isSubscribedRef.current = false;
         channelNameRef.current = '';
       }
     };
