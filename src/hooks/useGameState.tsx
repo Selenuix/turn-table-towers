@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GameState, Card, PlayerState } from '@/features/game-room/types';
+import { getCardValue } from '@/features/game-room/utils/gameLogic';
 
 export const useGameState = (roomId: string, userId: string) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -135,26 +136,188 @@ export const useGameState = (roomId: string, userId: string) => {
     try {
       console.log('Performing game action:', action, data);
 
-      // For now, we'll implement basic actions
-      // In a full implementation, you'd have a comprehensive RPC function for all game actions
+      if (!gameState) {
+        throw new Error('Game state not found');
+      }
+
+      // Create a deep copy of the game state to modify
+      const updatedGameState = JSON.parse(JSON.stringify(gameState));
+      const currentPlayerState = updatedGameState.player_states[userId];
+
+      if (!currentPlayerState) {
+        throw new Error('Player state not found');
+      }
 
       switch (action) {
-        case 'change_own_shield':
-          // This would call an RPC function to draw a card and replace the shield
-          console.log('Changing own shield');
+        case 'change_own_shield': {
+          // Draw a card from the deck
+          if (updatedGameState.deck.length === 0) {
+            throw new Error('Deck is empty');
+          }
+
+          const newCard = updatedGameState.deck.pop();
+
+          // If player already has a shield, move it to discard pile
+          if (currentPlayerState.shield) {
+            updatedGameState.discard_pile.push(currentPlayerState.shield);
+          }
+
+          // Set the new card as shield
+          currentPlayerState.shield = newCard;
+
+          // Move to next player
+          const playerIds = Object.keys(updatedGameState.player_states);
+          const currentPlayerIndex = playerIds.indexOf(userId);
+          const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
+          updatedGameState.current_player_id = playerIds[nextPlayerIndex];
+
           break;
-        case 'change_other_shield':
-          console.log('Changing other player shield for:', data?.targetId);
+        }
+
+        case 'change_other_shield': {
+          // Check if target player exists
+          const targetId = data?.targetId;
+          if (!targetId || !updatedGameState.player_states[targetId]) {
+            throw new Error('Invalid target player');
+          }
+
+          // Draw a card from the deck
+          if (updatedGameState.deck.length === 0) {
+            throw new Error('Deck is empty');
+          }
+
+          const newCard = updatedGameState.deck.pop();
+          const targetPlayerState = updatedGameState.player_states[targetId];
+
+          // If target player already has a shield, move it to discard pile
+          if (targetPlayerState.shield) {
+            updatedGameState.discard_pile.push(targetPlayerState.shield);
+          }
+
+          // Set the new card as shield for target player
+          targetPlayerState.shield = newCard;
+
+          // Move to next player
+          const playerIds = Object.keys(updatedGameState.player_states);
+          const currentPlayerIndex = playerIds.indexOf(userId);
+          const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
+          updatedGameState.current_player_id = playerIds[nextPlayerIndex];
+
           break;
-        case 'store_card':
-          console.log('Storing a card');
+        }
+
+        case 'store_card': {
+          // Draw a card from the deck
+          if (updatedGameState.deck.length === 0) {
+            throw new Error('Deck is empty');
+          }
+
+          const newCard = updatedGameState.deck.pop();
+
+          // Add the card to stored cards
+          currentPlayerState.stored_cards.push(newCard);
+
+          // Move to next player
+          const playerIds = Object.keys(updatedGameState.player_states);
+          const currentPlayerIndex = playerIds.indexOf(userId);
+          const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
+          updatedGameState.current_player_id = playerIds[nextPlayerIndex];
+
           break;
-        case 'attack':
-          console.log('Attacking player:', data?.targetId, 'with stored cards:', data?.storedCardIndices);
+        }
+
+        case 'attack': {
+          // Check if target player exists
+          const targetId = data?.targetId;
+          if (!targetId || !updatedGameState.player_states[targetId]) {
+            throw new Error('Invalid target player');
+          }
+
+          const targetPlayerState = updatedGameState.player_states[targetId];
+
+          // Draw a card from the deck for attack
+          if (updatedGameState.deck.length === 0) {
+            throw new Error('Deck is empty');
+          }
+
+          const attackCard = updatedGameState.deck.pop();
+          let attackValue = getCardValue(attackCard);
+
+          // Add stored cards to attack if specified
+          const storedCardIndices = data?.storedCardIndices || [];
+          const usedStoredCards = [];
+
+          for (const index of storedCardIndices) {
+            if (index >= 0 && index < currentPlayerState.stored_cards.length) {
+              const storedCard = currentPlayerState.stored_cards[index];
+              attackValue += getCardValue(storedCard);
+              usedStoredCards.push(storedCard);
+            }
+          }
+
+          // Remove used stored cards (in reverse order to avoid index issues)
+          for (let i = storedCardIndices.length - 1; i >= 0; i--) {
+            const index = storedCardIndices[i];
+            if (index >= 0 && index < currentPlayerState.stored_cards.length) {
+              currentPlayerState.stored_cards.splice(index, 1);
+            }
+          }
+
+          // Compare attack value with shield value
+          const shieldValue = targetPlayerState.shield ? getCardValue(targetPlayerState.shield) : 0;
+
+          // If attack is successful, reduce target's HP
+          if (attackValue > shieldValue) {
+            const damage = attackValue - shieldValue;
+            targetPlayerState.hp = Math.max(0, targetPlayerState.hp - damage);
+
+            // When a player with stored cards is hit, the stored card(s) is/are discarded
+            if (targetPlayerState.stored_cards.length > 0) {
+              // Add all stored cards to discard pile
+              updatedGameState.discard_pile.push(...targetPlayerState.stored_cards);
+              // Clear stored cards
+              targetPlayerState.stored_cards = [];
+            }
+          }
+
+          // Add attack card to discard pile
+          updatedGameState.discard_pile.push(attackCard);
+
+          // Add used stored cards to discard pile
+          updatedGameState.discard_pile.push(...usedStoredCards);
+
+          // Move to next player
+          const playerIds = Object.keys(updatedGameState.player_states);
+          const currentPlayerIndex = playerIds.indexOf(userId);
+          const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
+          updatedGameState.current_player_id = playerIds[nextPlayerIndex];
+
           break;
+        }
+
         default:
           console.log('Unknown action:', action);
+          return { success: false, error: new Error('Unknown action') };
       }
+
+      // Update the game state in the database
+      const { error } = await supabase
+        .from('game_states')
+        .update({
+          current_player_id: updatedGameState.current_player_id,
+          deck: updatedGameState.deck,
+          discard_pile: updatedGameState.discard_pile,
+          player_states: updatedGameState.player_states,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', updatedGameState.id);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      setGameState(updatedGameState);
 
       return { success: true, error: null };
     } catch (err) {
