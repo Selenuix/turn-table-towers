@@ -1,4 +1,3 @@
-
 export interface GameRoom {
   id: string;
   name: string | null;
@@ -18,7 +17,7 @@ export interface Player {
   created_at: string;
 }
 
-export type RoomStatus = 'waiting' | 'in_progress' | 'completed';
+export type RoomStatus = 'waiting' | 'in_progress' | 'finished';
 
 export interface Card {
   suit: CardSuit;
@@ -35,6 +34,7 @@ export interface GameState {
   deck: Card[];
   discard_pile: Card[];
   player_states: Record<string, PlayerState>;
+  status: RoomStatus;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +46,7 @@ export interface PlayerState {
   stored_cards: Card[];
   hp: number;
   setup_complete: boolean;
+  temp_attack_card?: Card;
 }
 
 export interface GameAction {

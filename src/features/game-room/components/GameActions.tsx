@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -12,7 +11,7 @@ interface GameActionsProps {
   currentPlayerState: PlayerState;
   players: Player[];
   playerStates: Record<string, PlayerState>;
-  onAction: (action: string, data?: any) => void;
+  onAction: (action: string, data?: any) => Promise<{ success: boolean; error: Error | null; data?: any }>;
 }
 
 export const GameActions = ({
@@ -27,6 +26,7 @@ export const GameActions = ({
   const [selectedStoredCards, setSelectedStoredCards] = useState<number[]>([]);
   const [cardsRevealed, setCardsRevealed] = useState(false);
   const [confirmingAttack, setConfirmingAttack] = useState(false);
+  const [drawnCardValue, setDrawnCardValue] = useState<number | null>(null);
 
   if (!isPlayerTurn) {
     return (
@@ -47,10 +47,16 @@ export const GameActions = ({
     }
   };
 
-  const handleTargetSelect = (targetId: string) => {
+  const handleTargetSelect = async (targetId: string) => {
     setSelectedTarget(targetId);
 
     if (selectedAction === 'attack') {
+      // Draw a card first
+      const result = await onAction('draw_attack_card', { targetId });
+      if (result?.data?.drawnCardValue) {
+        setDrawnCardValue(result.data.drawnCardValue);
+      }
+
       // If there are selected stored cards and they haven't been revealed yet,
       // enter the confirmation flow instead of immediately attacking
       if (selectedStoredCards.length > 0 && !cardsRevealed) {
@@ -89,6 +95,7 @@ export const GameActions = ({
     setSelectedStoredCards([]);
     setCardsRevealed(false);
     setConfirmingAttack(false);
+    setDrawnCardValue(null);
   };
 
   const toggleStoredCard = (index: number) => {
@@ -159,17 +166,27 @@ export const GameActions = ({
 
             {selectedStoredCards.length > 0 && cardsRevealed && (
               <div className="mt-3 p-2 bg-slate-600/50 rounded border border-slate-500">
-                <h5 className="text-white text-xs font-medium mb-1">Selected Card Values:</h5>
+                <h5 className="text-white text-xs font-medium mb-1">Attack Power:</h5>
                 <div className="flex flex-wrap gap-2">
+                  {drawnCardValue !== null && (
+                    <div className="text-xs bg-blue-700 px-2 py-1 rounded text-white">
+                      Drawn Card: {drawnCardValue}
+                    </div>
+                  )}
                   {selectedStoredCards.map((index) => (
                     <div key={index} className="text-xs bg-slate-700 px-2 py-1 rounded text-white">
-                      {getCardValue(currentPlayerState.stored_cards[index])}
+                      Stored: {getCardValue(currentPlayerState.stored_cards[index])}
                     </div>
                   ))}
-                  <div className="text-xs bg-green-700 px-2 py-1 rounded text-white">
-                    Total: {selectedStoredCards.reduce((sum, index) =>
-                      sum + getCardValue(currentPlayerState.stored_cards[index]), 0)}
-                  </div>
+                  {drawnCardValue !== null && (
+                    <div className="text-xs bg-green-700 px-2 py-1 rounded text-white">
+                      Total: {drawnCardValue + selectedStoredCards.reduce((sum, index) =>
+                        sum + getCardValue(currentPlayerState.stored_cards[index]), 0)}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 text-xs text-slate-400">
+                  Note: Attack succeeds only if total is greater than target's shield value
                 </div>
               </div>
             )}

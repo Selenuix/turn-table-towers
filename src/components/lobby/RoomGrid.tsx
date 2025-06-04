@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,9 @@ interface RoomGridProps {
 }
 
 export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) => {
+  // Filter out finished games
+  const activeRooms = rooms.filter(room => room.status !== 'finished');
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "waiting":
@@ -25,7 +27,7 @@ export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) 
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {rooms.map((room) => {
+      {activeRooms.map((room) => {
         const isPlayerInRoom = room.player_ids.includes(currentUserId);
         
         return (
@@ -34,7 +36,7 @@ export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) 
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-bold text-white truncate">
-                  {room.name || `Room ${room.room_code}`}
+                  {room.name || `Game ${room.room_code}`}
                 </CardTitle>
                 <Badge className={`${getStatusColor(room.status)} border`}>
                   {room.status === "waiting" ? "Open" : "Playing"}

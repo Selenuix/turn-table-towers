@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { GameRoom, Player } from '@/features/game-room/types';
+import { useLocation } from 'react-router-dom';
 
 export const useGameRooms = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
@@ -10,6 +11,7 @@ export const useGameRooms = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const subscriptionRef = useRef<any>(null);
+  const location = useLocation();
 
   const getRoom = async (roomId: string): Promise<GameRoom | null> => {
     console.log('getRoom called with ID:', roomId);
@@ -81,6 +83,7 @@ export const useGameRooms = () => {
       const { data, error } = await supabase
         .from('game_rooms')
         .select('*')
+        .neq('status', 'finished')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -294,6 +297,13 @@ export const useGameRooms = () => {
   useEffect(() => {
     if (!user?.id) return;
 
+    // Only fetch rooms and set up subscription when on the home page
+    const isHomePage = location.pathname === '/';
+    if (!isHomePage) {
+      setLoading(false);
+      return;
+    }
+
     // Clean up any existing subscription first
     if (subscriptionRef.current) {
       supabase.removeChannel(subscriptionRef.current);
@@ -331,7 +341,7 @@ export const useGameRooms = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [user?.id]);
+  }, [user?.id, location.pathname]);
 
   return {
     rooms,

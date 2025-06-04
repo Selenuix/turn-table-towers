@@ -1,10 +1,13 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { GameState, Player } from "@/features/game-room/types";
+import { Player } from "@/features/game-room/types";
 import { useGameState } from "@/hooks/useGameState";
 import { SetupPhase } from './SetupPhase';
 import { PlayerBoard } from './PlayerBoard';
 import { GameActions } from './GameActions';
+import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Clock } from 'lucide-react';
 
 interface GameViewProps {
   roomId: string;
@@ -17,19 +20,19 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
     gameState,
     loading,
     error,
-    setupPlayerCards,
     isPlayerTurn,
-    getPlayerHand,
     performGameAction
   } = useGameState(roomId, userId);
 
+  const { toast } = useToast();
+
   if (loading) {
     return (
-      <Card className="bg-slate-800/50 border-slate-700">
+      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
         <CardContent className="p-8 text-center">
-          <div className="text-white text-lg">Loading game...</div>
-          <div className="text-slate-400 text-sm mt-2">
-            Setting up game state...
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 w-48 bg-slate-800 rounded mx-auto"></div>
+            <div className="h-4 w-64 bg-slate-800/50 rounded mx-auto"></div>
           </div>
         </CardContent>
       </Card>
@@ -77,14 +80,112 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
 
   const isSetupPhase = !playerState.setup_complete;
 
-  const handleSetupComplete = async (shieldIndex: number, hpIndices: number[]) => {
-    await setupPlayerCards(shieldIndex, hpIndices);
+  // Check if game is over
+  if (gameState.status === 'finished') {
+    // Find the winner (player with HP > 0)
+    const winner = players.find(player => {
+      const state = gameState.player_states[player.id];
+      return state && state.hp > 0;
+    });
+
+    if (!winner) {
+      return (
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="p-8 text-center">
+            <div className="text-white text-lg">Game Over</div>
+            <div className="text-slate-400 text-sm mt-2">
+              No winner found. This shouldn't happen!
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const isWinner = winner.id === userId;
+
+    return (
+      <Card className={`${isWinner ? 'bg-green-900/20 border-green-700' : 'bg-slate-800/50 border-slate-700'}`}>
+        <CardHeader>
+          <CardTitle className={`text-2xl font-bold ${isWinner ? 'text-green-400' : 'text-white'}`}>
+            {isWinner ? 'You Won!' : 'Game Over'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {isWinner ? (
+              <div className="text-green-300">
+                Congratulations! You have won the game!
+              </div>
+            ) : (
+              <div className="text-slate-300">
+                {winner.username || winner.email?.split('@')[0]} has won the game!
+              </div>
+            )}
+
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-white mb-3">Final Stats</h3>
+              <div className="space-y-2">
+                {players.map(player => {
+                  const playerGameState = gameState.player_states[player.id];
+                  const isEliminated = playerGameState?.hp <= 0;
+                  return (
+                    <div key={player.id} className="flex items-center justify-between p-2 rounded bg-slate-800/30">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full ${isEliminated ? 'bg-red-500' : 'bg-green-500'}`} />
+                        <span className="text-white">
+                          {player.username || player.email?.split('@')[0]}
+                          {player.id === userId && ' (You)'}
+                        </span>
+                      </div>
+                      <div className="text-slate-400">
+                        HP: {playerGameState?.hp || 0}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <Button
+                onClick={() => window.location.href = '/'}
+                className="w-full"
+              >
+                Return to Home
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Check if all players have completed setup
+  const allPlayersSetup = players.every(player =>
+    gameState.player_states[player.id]?.setup_complete
+  );
+
+  const handleSetupComplete = async (selectedShield: number, selectedHpCards: number[]) => {
+    try {
+      const { error } = await supabase.rpc('update_player_cards', {
+        p_room_id: roomId,
+        p_player_id: userId,
+        p_shield_index: selectedShield,
+        p_hp_indices: selectedHpCards
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error completing setup:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to complete setup',
+        variant: 'destructive'
+      });
+    }
   };
 
-  const handleGameAction = async (action: string, data?: any) => {
-    await performGameAction(action, data);
-  };
-
+  // If current player hasn't completed setup, show SetupPhase
   if (isSetupPhase) {
     return (
       <div className="space-y-6">
@@ -96,11 +197,7 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
     );
   }
 
-  // Check if all players have completed setup
-  const allPlayersSetup = players.every(player =>
-    gameState.player_states[player.id]?.setup_complete
-  );
-
+  // If current player has completed setup but others haven't, show waiting screen
   if (!allPlayersSetup) {
     return (
       <Card className="bg-slate-800/50 border-slate-700">
@@ -133,15 +230,25 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
     );
   }
 
+  const handleGameAction = async (action: string, data?: any) => {
+    try {
+      await performGameAction(action, data);
+      return { success: true, error: null };
+    } catch (error) {
+      return { success: false, error: error as Error };
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Game Status */}
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardContent className="p-4">
+      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm">
+        <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-white mb-1">Shield Card Game</h2>
-              <div className="text-slate-300">
+            <div className="space-y-1">
+              <h2 className="text-2xl font-bold text-slate-100">Shield Card Game</h2>
+              <div className="flex items-center text-slate-300">
+                <Clock className="w-4 h-4 mr-2 text-slate-400" />
                 Current Turn: {
                   players.find(p => p.id === gameState.current_player_id)?.username ||
                   players.find(p => p.id === gameState.current_player_id)?.email?.split('@')[0] ||
@@ -149,47 +256,52 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
                 }
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-slate-400 text-sm">Cards in Deck</div>
-              <div className="text-white text-lg font-bold">{gameState.deck.length}</div>
+            <div className="flex items-center space-x-6">
+              <div className="text-right">
+                <div className="text-slate-400 text-sm mb-1">Cards in Deck</div>
+                <div className="text-slate-100 text-2xl font-bold">{gameState.deck.length}</div>
+              </div>
+              <div className="h-12 w-px bg-slate-800"></div>
+              <div className="text-right">
+                <div className="text-slate-400 text-sm mb-1">Players</div>
+                <div className="text-slate-100 text-2xl font-bold">{players.length}</div>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Player Boards */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="grid gap-4">
-            {players.map(player => {
-              const playerGameState = gameState.player_states[player.id];
-              const isCurrentTurn = gameState.current_player_id === player.id;
-              const isCurrentUser = player.id === userId;
+      {/* Game Actions */}
+      <div className="w-full">
+        <GameActions
+          isPlayerTurn={isPlayerTurn() && playerState.hp > 0}
+          currentPlayerState={playerState}
+          players={players.filter(p => p.id !== userId && gameState.player_states[p.id]?.hp > 0)}
+          playerStates={gameState.player_states}
+          onAction={handleGameAction}
+        />
+      </div>
 
-              return (
-                <PlayerBoard
-                  key={player.id}
-                  player={player}
-                  playerState={playerGameState}
-                  isCurrentPlayer={isCurrentTurn}
-                  isCurrentUser={isCurrentUser}
-                  allPlayersSetup={allPlayersSetup}
-                />
-              );
-            })}
-          </div>
-        </div>
+      {/* Player Boards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {players.map((player) => {
+          const playerState = gameState.player_states[player.id];
+          const isCurrentPlayer = player.id === gameState.current_player_id;
+          const isCurrentUser = player.id === userId;
+          const currentPlayer = players.find(p => p.id === gameState.current_player_id);
 
-        {/* Game Actions */}
-        <div className="lg:col-span-1">
-          <GameActions
-            isPlayerTurn={isPlayerTurn()}
-            currentPlayerState={playerState}
-            players={players.filter(p => p.id !== userId)}
-            playerStates={gameState.player_states}
-            onAction={handleGameAction}
-          />
-        </div>
+          return (
+            <PlayerBoard
+              key={player.id}
+              player={player}
+              playerState={playerState}
+              isCurrentPlayer={isCurrentPlayer}
+              isCurrentUser={isCurrentUser}
+              allPlayersSetup={allPlayersSetup}
+              currentPlayer={currentPlayer}
+            />
+          );
+        })}
       </div>
     </div>
   );
