@@ -46,6 +46,7 @@ export interface PlayerState {
   stored_cards: Card[];
   hp: number;
   setup_complete: boolean;
+  eliminated: boolean;
   temp_attack_card?: Card;
 }
 

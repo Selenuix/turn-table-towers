@@ -148,21 +148,12 @@ export const useGameState = (roomId: string, userId: string) => {
   };
 
   const performGameAction = async (action: string, data?: any) => {
-    if (!gameState) return;
+    if (!gameState || gameState.status === 'finished') {
+      throw new Error('Game is not active');
+    }
 
     try {
-      // Create a deep copy of the game state to modify
-      const updatedGameState = JSON.parse(JSON.stringify(gameState));
-      const currentPlayerState = updatedGameState.player_states[userId];
-
-      if (!currentPlayerState) {
-        throw new Error('Player state not found');
-      }
-
-      // Check if game is already over
-      if (gameState.status === 'finished') {
-        throw new Error('Game is already over');
-      }
+      let updatedGameState = { ...gameState };
 
       switch (action) {
         case 'change_own_shield': {
@@ -174,12 +165,12 @@ export const useGameState = (roomId: string, userId: string) => {
           const newCard = updatedGameState.deck.pop();
 
           // If player already has a shield, move it to discard pile
-          if (currentPlayerState.shield) {
-            updatedGameState.discard_pile.push(currentPlayerState.shield);
+          if (updatedGameState.player_states[userId].shield) {
+            updatedGameState.discard_pile.push(updatedGameState.player_states[userId].shield);
           }
 
           // Set the new card as shield
-          currentPlayerState.shield = newCard;
+          updatedGameState.player_states[userId].shield = newCard;
 
           // Move to next player
           const playerIds = Object.keys(updatedGameState.player_states);
@@ -187,19 +178,6 @@ export const useGameState = (roomId: string, userId: string) => {
           const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
           updatedGameState.current_player_id = playerIds[nextPlayerIndex];
 
-          // Update the game state in the database
-          const { error } = await supabase
-            .from('game_states')
-            .update({
-              deck: updatedGameState.deck,
-              discard_pile: updatedGameState.discard_pile,
-              player_states: updatedGameState.player_states,
-              current_player_id: updatedGameState.current_player_id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', updatedGameState.id);
-
-          if (error) throw error;
           break;
         }
 
@@ -232,19 +210,6 @@ export const useGameState = (roomId: string, userId: string) => {
           const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
           updatedGameState.current_player_id = playerIds[nextPlayerIndex];
 
-          // Update the game state in the database
-          const { error } = await supabase
-            .from('game_states')
-            .update({
-              deck: updatedGameState.deck,
-              discard_pile: updatedGameState.discard_pile,
-              player_states: updatedGameState.player_states,
-              current_player_id: updatedGameState.current_player_id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', updatedGameState.id);
-
-          if (error) throw error;
           break;
         }
 
@@ -257,7 +222,7 @@ export const useGameState = (roomId: string, userId: string) => {
           const newCard = updatedGameState.deck.pop();
 
           // Add the card to stored cards
-          currentPlayerState.stored_cards.push(newCard);
+          updatedGameState.player_states[userId].stored_cards.push(newCard);
 
           // Move to next player
           const playerIds = Object.keys(updatedGameState.player_states);
@@ -265,113 +230,89 @@ export const useGameState = (roomId: string, userId: string) => {
           const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
           updatedGameState.current_player_id = playerIds[nextPlayerIndex];
 
-          // Update the game state in the database
-          const { error } = await supabase
-            .from('game_states')
-            .update({
-              deck: updatedGameState.deck,
-              player_states: updatedGameState.player_states,
-              current_player_id: updatedGameState.current_player_id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', updatedGameState.id);
-
-          if (error) throw error;
           break;
         }
 
         case 'attack': {
-          const targetId = data?.targetId;
-          if (!targetId || !updatedGameState.player_states[targetId]) {
-            throw new Error('Invalid target player');
+          const { targetId, storedCardIndices } = data;
+          const currentPlayerState = updatedGameState.player_states[userId];
+          const targetPlayerState = updatedGameState.player_states[targetId];
+
+          if (!currentPlayerState || !targetPlayerState) {
+            throw new Error('Invalid player state');
           }
 
           // Draw a card for the attack
-          if (updatedGameState.deck.length === 0) {
-            throw new Error('Deck is empty');
-          }
-
-          const attackCard = updatedGameState.deck.pop();
-          const targetPlayerState = updatedGameState.player_states[targetId];
+          const drawnCard = updatedGameState.deck[0];
+          const attackValue = getCardValue(drawnCard);
 
           // Calculate total attack value including stored cards
-          let attackValue = getCardValue(attackCard);
+          let totalAttackValue = attackValue;
           const usedStoredCards: Card[] = [];
 
-          // Add stored cards to attack if specified
-          if (data.storedCardIndices?.length) {
-            for (const index of data.storedCardIndices) {
+          if (storedCardIndices && storedCardIndices.length > 0) {
+            storedCardIndices.forEach((index: number) => {
               const storedCard = currentPlayerState.stored_cards[index];
               if (storedCard) {
-                attackValue += getCardValue(storedCard);
+                totalAttackValue += getCardValue(storedCard);
                 usedStoredCards.push(storedCard);
               }
-            }
-            // Remove used stored cards
-            currentPlayerState.stored_cards = currentPlayerState.stored_cards.filter(
-              (_, index) => !data.storedCardIndices.includes(index)
-            );
+            });
           }
 
-          const shieldValue = targetPlayerState.shield ? getCardValue(targetPlayerState.shield) : 0;
-
           // Check if attack is successful
-          if (attackValue > shieldValue) {
-            // Attack successful, reduce target's HP
-            targetPlayerState.hp = Math.max(0, targetPlayerState.hp - (attackValue - shieldValue));
+          const shieldValue = getCardValue(targetPlayerState.shield);
+          const isSuccessful = totalAttackValue > shieldValue;
 
-            // Discard target's stored cards when hit
+          // Update target's HP if attack is successful
+          if (isSuccessful) {
+            targetPlayerState.hp -= 1;
+            
+            // Discard target's stored cards if hit
             if (targetPlayerState.stored_cards.length > 0) {
               updatedGameState.discard_pile.push(...targetPlayerState.stored_cards);
               targetPlayerState.stored_cards = [];
             }
-
-            // Check if target is eliminated
-            if (targetPlayerState.hp <= 0) {
-              // Check if game is over (only one player alive)
-              const alivePlayers = Object.entries(updatedGameState.player_states)
-                .filter(([_, state]) => (state as PlayerState).hp > 0);
-
-              if (alivePlayers.length === 1) {
-                // Game is over, update game status
-                const { error: gameError } = await supabase
-                  .from('game_rooms')
-                  .update({ 
-                    status: 'finished',
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', roomId);
-
-                if (gameError) throw gameError;
-
-                // Update game state status
-                updatedGameState.status = 'finished';
-              }
-            }
           }
 
-          // Move attack card and used stored cards to discard pile
-          updatedGameState.discard_pile.push(attackCard, ...usedStoredCards);
+          // Move used cards to discard pile
+          updatedGameState.discard_pile.push(drawnCard, ...usedStoredCards);
 
-          // Move to next player
-          const playerIds = Object.keys(updatedGameState.player_states);
-          const currentPlayerIndex = playerIds.indexOf(userId);
-          const nextPlayerIndex = (currentPlayerIndex + 1) % playerIds.length;
-          updatedGameState.current_player_id = playerIds[nextPlayerIndex];
+          // Remove used stored cards from current player
+          if (usedStoredCards.length > 0) {
+            currentPlayerState.stored_cards = currentPlayerState.stored_cards.filter(
+              (_, index) => !storedCardIndices.includes(index)
+            );
+          }
 
-          // Update the game state in the database
-          const { error } = await supabase
-            .from('game_states')
-            .update({
-              deck: updatedGameState.deck,
-              discard_pile: updatedGameState.discard_pile,
-              player_states: updatedGameState.player_states,
-              current_player_id: updatedGameState.current_player_id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', updatedGameState.id);
+          // Remove drawn card from deck
+          updatedGameState.deck = updatedGameState.deck.slice(1);
 
-          if (error) throw error;
+          // Check if target is eliminated
+          if (targetPlayerState.hp <= 0) {
+            targetPlayerState.eliminated = true;
+          }
+
+          // Check if game should end (only one player remaining)
+          const activePlayers = Object.values(updatedGameState.player_states).filter(
+            state => !state.eliminated
+          );
+
+          if (activePlayers.length === 1) {
+            updatedGameState.status = 'finished';
+          } else {
+            // Find next active player
+            const currentPlayerIndex = Object.keys(updatedGameState.player_states).findIndex(id => id === userId);
+            let nextPlayerIndex = (currentPlayerIndex + 1) % Object.keys(updatedGameState.player_states).length;
+            
+            // Skip eliminated players
+            while (updatedGameState.player_states[Object.keys(updatedGameState.player_states)[nextPlayerIndex]].eliminated) {
+              nextPlayerIndex = (nextPlayerIndex + 1) % Object.keys(updatedGameState.player_states).length;
+            }
+            
+            updatedGameState.current_player_id = Object.keys(updatedGameState.player_states)[nextPlayerIndex];
+          }
+
           break;
         }
 
@@ -379,12 +320,38 @@ export const useGameState = (roomId: string, userId: string) => {
           throw new Error(`Unknown action: ${action}`);
       }
 
-      // Update local state after successful database update
+      // Update game state in database
+      const { error: updateError } = await supabase
+        .from('game_states')
+        .update({
+          deck: updatedGameState.deck,
+          discard_pile: updatedGameState.discard_pile,
+          player_states: JSON.stringify(updatedGameState.player_states),
+          current_player_id: updatedGameState.current_player_id,
+          status: updatedGameState.status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('room_id', roomId);
+
+      if (updateError) throw updateError;
+
+      // Update game room status if game is finished
+      if (updatedGameState.status === 'finished') {
+        const { error: roomError } = await supabase
+          .from('game_rooms')
+          .update({ 
+            status: 'finished',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', roomId);
+
+        if (roomError) throw roomError;
+      }
+
       setGameState(updatedGameState);
-      return { success: true, error: null };
     } catch (error) {
       console.error('Error performing game action:', error);
-      return { success: false, error };
+      throw error;
     }
   };
 

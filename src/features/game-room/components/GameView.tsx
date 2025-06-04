@@ -8,6 +8,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface GameViewProps {
   roomId: string;
@@ -25,6 +27,32 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
   } = useGameState(roomId, userId);
 
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [roomStatus, setRoomStatus] = useState<string | null>(null);
+
+  // Fetch room status
+  useEffect(() => {
+    const fetchRoomStatus = async () => {
+      const { data, error } = await supabase
+        .from('game_rooms')
+        .select('status')
+        .eq('id', roomId)
+        .single();
+
+      if (!error && data) {
+        setRoomStatus(data.status);
+      }
+    };
+
+    fetchRoomStatus();
+  }, [roomId]);
+
+  // Redirect to home when game or room is finished
+  useEffect(() => {
+    if (gameState?.status === 'finished' || roomStatus === 'finished') {
+      navigate('/');
+    }
+  }, [gameState?.status, roomStatus, navigate]);
 
   if (loading) {
     return (

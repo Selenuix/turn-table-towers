@@ -1,24 +1,21 @@
-
-import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useToast } from '@/components/ui/use-toast';
-import { useOptimizedGameRooms } from '@/hooks/useOptimizedGameRooms';
-import { useAuthContext } from '@/hooks/useAuthContext';
-import { RoomHeader } from '@/features/game-room/components/RoomHeader';
-import { RoomContent } from '@/features/game-room/components/RoomContent';
-import { GameRoom, Player } from '@/features/game-room/types';
-import { supabase } from '@/integrations/supabase/client';
+import {useEffect, useRef, useState} from 'react';
+import {useNavigate, useParams} from 'react-router-dom';
+import {useToast} from '@/components/ui/use-toast';
+import {useOptimizedGameRooms} from '@/hooks/useOptimizedGameRooms';
+import {useAuthContext} from '@/hooks/useAuthContext';
+import {RoomHeader} from '@/features/game-room/components/RoomHeader';
+import {RoomContent} from '@/features/game-room/components/RoomContent';
+import {GameRoom, Player} from '@/features/game-room/types';
+import {supabase} from '@/integrations/supabase/client';
+import {RoomStatusEnum} from "@/consts";
 
 export default function Room() {
-  const { id } = useParams<{ id: string }>();
+  const {id} = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user, loading: authLoading } = useAuthContext();
+  const {toast} = useToast();
+  const {user, loading: authLoading} = useAuthContext();
   const {
-    getRoom,
-    getPlayers,
-    startGame,
-    leaveRoom,
+    getRoom, getPlayers, startGame, leaveRoom,
   } = useOptimizedGameRooms();
 
   const [room, setRoom] = useState<GameRoom | null>(null);
@@ -54,13 +51,18 @@ export default function Room() {
 
     // If not logged in, redirect to auth page
     if (!user) {
-      navigate('/auth', { replace: true });
+      navigate('/auth', {replace: true});
       return;
     }
 
     // If logged in but no room ID, redirect to lobby
     if (!id) {
-      navigate('/', { replace: true });
+      navigate('/', {replace: true});
+      return;
+    }
+
+    if (room && room.status === RoomStatusEnum.FINISHED) {
+      navigate('/', {replace: true});
       return;
     }
 
@@ -70,12 +72,10 @@ export default function Room() {
     const loadRoom = async () => {
       try {
         const roomData = await getRoom(id);
-        
+
         if (!roomData) {
           toast({
-            title: 'Error',
-            description: 'Room not found',
-            variant: 'destructive',
+            title: 'Error', description: 'Room not found', variant: 'destructive',
           });
           navigate('/');
           return;
@@ -83,7 +83,7 @@ export default function Room() {
 
         if (isMountedRef.current) {
           setRoom(roomData);
-          
+
           const playersData = await getPlayers(roomData.player_ids);
           if (isMountedRef.current) {
             setPlayers(playersData);
@@ -93,9 +93,7 @@ export default function Room() {
         console.error('Error loading room:', error);
         if (isMountedRef.current) {
           toast({
-            title: 'Error',
-            description: 'Failed to load room data',
-            variant: 'destructive',
+            title: 'Error', description: 'Failed to load room data', variant: 'destructive',
           });
           navigate('/');
         }
@@ -114,52 +112,52 @@ export default function Room() {
     // Set up real-time subscription with unique channel name including more randomness
     const channelName = `room_${id}_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     channelNameRef.current = channelName;
-    
+
     console.log('Creating room subscription:', channelName);
-    
+
     // Add a delay to ensure previous subscription is fully cleaned up
     const timeoutId = setTimeout(() => {
       if (!isMountedRef.current) return;
 
       const channel = supabase.channel(channelName);
-      
+
       channel
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
-          async (payload) => {
-            if (!isMountedRef.current) return;
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'game_rooms',
+          filter: `id=eq.${id}`
+        }, async (payload) => {
+          if (!isMountedRef.current) return;
 
-            console.log('Room update received:', payload.eventType);
-            
-            if (payload.eventType === 'DELETE') {
-              toast({
-                title: 'Room Closed',
-                description: 'The room has been closed',
-              });
-              navigate('/');
-              return;
-            }
+          console.log('Room update received:', payload.eventType);
 
-            const updatedRoom = payload.new as GameRoom;
+          if (payload.eventType === 'DELETE') {
+            toast({
+              title: 'Room Closed', description: 'The room has been closed',
+            });
+            navigate('/');
+            return;
+          }
+
+          const updatedRoom = payload.new as GameRoom;
+          if (isMountedRef.current) {
+            setRoom(updatedRoom);
+
+            const playersData = await getPlayers(updatedRoom.player_ids);
             if (isMountedRef.current) {
-              setRoom(updatedRoom);
-              
-              const playersData = await getPlayers(updatedRoom.player_ids);
-              if (isMountedRef.current) {
-                setPlayers(playersData);
+              setPlayers(playersData);
 
-                // If the current user is no longer in the room, navigate back to lobby
-                if (!updatedRoom.player_ids.includes(user?.id || '')) {
-                  toast({
-                    title: 'Left Room',
-                    description: 'You have left the room',
-                  });
-                  navigate('/');
-                }
+              // If the current user is no longer in the room, navigate back to lobby
+              if (!updatedRoom.player_ids.includes(user?.id || '')) {
+                toast({
+                  title: 'Left Room', description: 'You have left the room',
+                });
+                navigate('/');
               }
             }
           }
-        )
+        })
         .subscribe((status) => {
           console.log('Room subscription status:', status);
           if (status === 'SUBSCRIBED') {
@@ -181,76 +179,65 @@ export default function Room() {
 
   const handleStartGame = async () => {
     if (!room) return;
-    
+
     try {
       await startGame(room.id);
       toast({
-        title: 'Success',
-        description: 'Game started!',
+        title: 'Success', description: 'Game started!',
       });
     } catch (error) {
       console.error('Error starting game:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to start game',
-        variant: 'destructive',
+        title: 'Error', description: 'Failed to start game', variant: 'destructive',
       });
     }
   };
 
   const handleLeaveRoom = async () => {
     if (!room) return;
-    
+
     try {
       await leaveRoom(room.id);
       navigate('/');
     } catch (error) {
       console.error('Error leaving room:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to leave room',
-        variant: 'destructive',
+        title: 'Error', description: 'Failed to leave room', variant: 'destructive',
       });
     }
   };
 
   const handleCopyInviteLink = () => {
     if (!room) return;
-    
+
     const inviteLink = `${window.location.origin}/room/${room.room_code}`;
     navigator.clipboard.writeText(inviteLink);
     toast({
-      title: 'Success',
-      description: 'Invite link copied to clipboard!',
+      title: 'Success', description: 'Invite link copied to clipboard!',
     });
   };
 
   if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+    return (<div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
+      </div>);
   }
 
   if (!user || !room) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+    return (<div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading room data...</div>
-      </div>
-    );
+      </div>);
   }
 
   const isGameInProgress = room.status === 'in_progress';
 
-  return (
-    <div className="min-h-screen bg-slate-900">
+  return (<div className="min-h-screen bg-slate-900">
       <div className="container mx-auto px-4 py-8">
-        <RoomHeader 
-          room={room} 
-          onCopyRoomCode={handleCopyInviteLink} 
+        <RoomHeader
+          room={room}
+          onCopyRoomCode={handleCopyInviteLink}
         />
-        
+
         <RoomContent
           room={room}
           players={players}
@@ -261,6 +248,5 @@ export default function Room() {
           onCopyInviteLink={handleCopyInviteLink}
         />
       </div>
-    </div>
-  );
+    </div>);
 }
