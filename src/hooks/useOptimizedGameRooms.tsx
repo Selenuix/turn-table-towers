@@ -13,6 +13,7 @@ export const useOptimizedGameRooms = () => {
   const subscriptionRef = useRef<any>(null);
   const channelNameRef = useRef<string>('');
   const isSubscribedRef = useRef<boolean>(false);
+  const isMountedRef = useRef<boolean>(true);
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -22,16 +23,22 @@ export const useOptimizedGameRooms = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setRooms(data || []);
+      if (isMountedRef.current) {
+        setRooms(data || []);
+      }
     } catch (error) {
       console.error('Error fetching rooms:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load game rooms",
-        variant: "destructive",
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load game rooms",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [toast]);
 
@@ -217,15 +224,25 @@ export const useOptimizedGameRooms = () => {
     }
   }, [user, fetchRooms]);
 
-  useEffect(() => {
-    // Clean up any existing subscription first
+  const cleanupSubscription = useCallback(() => {
     if (subscriptionRef.current) {
-      console.log('Cleaning up existing subscription:', channelNameRef.current);
-      supabase.removeChannel(subscriptionRef.current);
+      console.log('Cleaning up subscription:', channelNameRef.current);
+      try {
+        supabase.removeChannel(subscriptionRef.current);
+      } catch (error) {
+        console.error('Error removing channel:', error);
+      }
       subscriptionRef.current = null;
       isSubscribedRef.current = false;
       channelNameRef.current = '';
     }
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // Clean up any existing subscription first
+    cleanupSubscription();
 
     if (!user?.id) {
       setLoading(false);
@@ -235,47 +252,50 @@ export const useOptimizedGameRooms = () => {
     // Fetch initial data
     fetchRooms();
 
-    // Create new subscription with unique channel name
-    const channelName = `game_rooms_${user.id}_${Date.now()}`;
+    // Create new subscription with unique channel name including timestamp
+    const channelName = `game_rooms_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     channelNameRef.current = channelName;
     
     console.log('Creating new subscription:', channelName);
     
-    const channel = supabase.channel(channelName);
-    
-    channel
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'game_rooms' },
-        async (payload) => {
-          console.log('Received room update:', payload.eventType);
-          if (payload.eventType === 'DELETE') {
-            setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
-            return;
-          }
-          await fetchRooms();
-        }
-      )
-      .subscribe((status) => {
-        console.log('Subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          isSubscribedRef.current = true;
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          isSubscribedRef.current = false;
-        }
-      });
+    // Add a small delay to ensure previous subscription is fully cleaned up
+    const timeoutId = setTimeout(() => {
+      if (!isMountedRef.current) return;
 
-    subscriptionRef.current = channel;
+      const channel = supabase.channel(channelName);
+      
+      channel
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'game_rooms' },
+          async (payload) => {
+            if (!isMountedRef.current) return;
+            
+            console.log('Received room update:', payload.eventType);
+            if (payload.eventType === 'DELETE') {
+              setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
+              return;
+            }
+            await fetchRooms();
+          }
+        )
+        .subscribe((status) => {
+          console.log('Subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            isSubscribedRef.current = true;
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            isSubscribedRef.current = false;
+          }
+        });
+
+      subscriptionRef.current = channel;
+    }, 100);
 
     return () => {
-      if (subscriptionRef.current) {
-        console.log('Cleaning up subscription on unmount:', channelNameRef.current);
-        supabase.removeChannel(subscriptionRef.current);
-        subscriptionRef.current = null;
-        isSubscribedRef.current = false;
-        channelNameRef.current = '';
-      }
+      isMountedRef.current = false;
+      clearTimeout(timeoutId);
+      cleanupSubscription();
     };
-  }, [user?.id, fetchRooms]);
+  }, [user?.id, fetchRooms, cleanupSubscription]);
 
   return {
     rooms,
