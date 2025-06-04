@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -25,6 +24,7 @@ export default function Room() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const subscriptionRef = useRef<any>(null);
+  const channelNameRef = useRef<string>('');
 
   useEffect(() => {
     // First check if authentication is still loading
@@ -77,14 +77,26 @@ export default function Room() {
 
     loadRoom();
 
+    // Clean up any existing subscription before creating a new one
+    if (subscriptionRef.current) {
+      console.log('Cleaning up existing room subscription:', channelNameRef.current);
+      supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
+    }
+
     // Set up real-time subscription with unique channel name
     const channelName = `room_${id}_${user.id}_${Date.now()}`;
+    channelNameRef.current = channelName;
+    
+    console.log('Creating room subscription:', channelName);
     
     const subscription = supabase
       .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${id}` },
         async (payload) => {
+          console.log('Room update received:', payload.eventType);
+          
           if (payload.eventType === 'DELETE') {
             toast({
               title: 'Room Closed',
@@ -116,8 +128,10 @@ export default function Room() {
 
     return () => {
       if (subscriptionRef.current) {
+        console.log('Cleaning up room subscription on unmount:', channelNameRef.current);
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
+        channelNameRef.current = '';
       }
     };
   }, [id, user, authLoading, getRoom, getPlayers, toast, navigate]);

@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { GameState, Card } from '@/features/game-room/types';
+import { GameState, Card, PlayerState } from '@/features/game-room/types';
 
 export const useGameState = (roomId: string, userId: string) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -20,7 +20,15 @@ export const useGameState = (roomId: string, userId: string) => {
           .single();
 
         if (error) throw error;
-        setGameState(data);
+        
+        // Transform the data to match our GameState interface
+        if (data) {
+          const transformedGameState: GameState = {
+            ...data,
+            player_states: data.player_states as Record<string, PlayerState>
+          };
+          setGameState(transformedGameState);
+        }
       } catch (err) {
         console.error('Error fetching game state:', err);
         setError(err);
@@ -31,13 +39,20 @@ export const useGameState = (roomId: string, userId: string) => {
 
     fetchGameState();
 
-    // Set up real-time subscription
+    // Set up real-time subscription with unique channel name to prevent duplicates
+    const channelName = `game_state_${roomId}_${userId}_${Date.now()}`;
     const channel = supabase
-      .channel(`game_state_${roomId}`)
+      .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_states', filter: `room_id=eq.${roomId}` },
         (payload) => {
-          setGameState(payload.new as GameState);
+          if (payload.new) {
+            const transformedGameState: GameState = {
+              ...payload.new,
+              player_states: payload.new.player_states as Record<string, PlayerState>
+            };
+            setGameState(transformedGameState);
+          }
         }
       )
       .subscribe();
@@ -45,7 +60,7 @@ export const useGameState = (roomId: string, userId: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId]);
+  }, [roomId, userId]);
 
   const setupPlayerCards = async (shieldIndex: number, hpIndices: number[]) => {
     try {

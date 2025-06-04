@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from './useAuthContext';
@@ -11,6 +10,7 @@ export const useOptimizedGameRooms = () => {
   const { user } = useAuthContext();
   const { toast } = useToast();
   const subscriptionRef = useRef<any>(null);
+  const channelNameRef = useRef<string>('');
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -216,21 +216,39 @@ export const useOptimizedGameRooms = () => {
   }, [user, fetchRooms]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      // Clean up any existing subscription when user becomes null
+      if (subscriptionRef.current) {
+        console.log('Cleaning up subscription due to no user');
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+        channelNameRef.current = '';
+      }
+      return;
+    }
 
+    // Clean up any existing subscription before creating a new one
     if (subscriptionRef.current) {
+      console.log('Cleaning up existing subscription:', channelNameRef.current);
       supabase.removeChannel(subscriptionRef.current);
       subscriptionRef.current = null;
     }
 
+    // Fetch initial data
     fetchRooms();
 
+    // Create new subscription with unique channel name
     const channelName = `game_rooms_${user.id}_${Date.now()}`;
+    channelNameRef.current = channelName;
+    
+    console.log('Creating new subscription:', channelName);
+    
     const subscription = supabase
       .channel(channelName)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'game_rooms' },
         async (payload) => {
+          console.log('Received room update:', payload.eventType);
           if (payload.eventType === 'DELETE') {
             setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
             return;
@@ -244,8 +262,10 @@ export const useOptimizedGameRooms = () => {
 
     return () => {
       if (subscriptionRef.current) {
+        console.log('Cleaning up subscription on unmount:', channelNameRef.current);
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
+        channelNameRef.current = '';
       }
     };
   }, [user?.id, fetchRooms]);
