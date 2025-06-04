@@ -4,6 +4,7 @@ import { GameRoom } from "@/features/home/types";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import {RoomStatusEnum} from "@/consts";
 
 interface GameListProps {
   games: GameRoom[];
@@ -15,11 +16,11 @@ export const GameList = ({ games, onJoinGame }: GameListProps) => {
   const { user } = useAuth();
 
   // Filter out finished games
-  const activeGames = games.filter(game => game.status !== 'finished');
+  const activeGames = games.filter(game => game.status !== RoomStatusEnum.FINISHED);
 
   // Group games by status
-  const ongoingGames = activeGames.filter(game => game.status === 'in_progress');
-  const waitingGames = activeGames.filter(game => game.status === 'waiting');
+  const ongoingGames = activeGames.filter(game => game.status === RoomStatusEnum.IN_PROGRESS);
+  const waitingGames = activeGames.filter(game => game.status === RoomStatusEnum.WAITING);
 
   const handleJoinGame = async (gameId: string) => {
     try {
@@ -118,4 +119,4 @@ export const GameList = ({ games, onJoinGame }: GameListProps) => {
       )}
     </div>
   );
-}; 
+};

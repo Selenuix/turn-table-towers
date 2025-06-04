@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { GameRoom } from '../types';
+import {RoomStatusEnum} from "@/consts";
 
 interface RoomHeaderProps {
   room: GameRoom;
@@ -11,7 +12,7 @@ interface RoomHeaderProps {
 
 export const RoomHeader = ({ room, onCopyRoomCode }: RoomHeaderProps) => {
   const navigate = useNavigate();
-  const isGameInProgress = room.status === 'in_progress';
+  const isGameInProgress = room.status === RoomStatusEnum.IN_PROGRESS;
 
   return (
     <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm">
@@ -50,4 +51,4 @@ export const RoomHeader = ({ room, onCopyRoomCode }: RoomHeaderProps) => {
       </div>
     </header>
   );
-}; 
+};

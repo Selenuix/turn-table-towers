@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Trophy, Users } from "lucide-react";
 import { GameRoom } from "@/features/game-room/types";
+import {RoomStatusEnum} from "@/consts";
 
 interface RoomGridProps {
   rooms: GameRoom[];
@@ -12,13 +13,13 @@ interface RoomGridProps {
 
 export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) => {
   // Filter out finished games
-  const activeRooms = rooms.filter(room => room.status !== 'finished');
+  const activeRooms = rooms.filter(room => room.status !== RoomStatusEnum.FINISHED);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "waiting":
+      case RoomStatusEnum.WAITING:
         return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "in_progress":
+      case RoomStatusEnum.IN_PROGRESS:
         return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
       default:
         return "bg-gray-500/20 text-gray-400 border-gray-500/30";
@@ -29,7 +30,7 @@ export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {activeRooms.map((room) => {
         const isPlayerInRoom = room.player_ids.includes(currentUserId);
-        
+
         return (
           <Card key={room.id}
             className="bg-slate-800/50 border-slate-700 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/20">
@@ -39,7 +40,7 @@ export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) 
                   {room.name || `Game ${room.room_code}`}
                 </CardTitle>
                 <Badge className={`${getStatusColor(room.status)} border`}>
-                  {room.status === "waiting" ? "Open" : "Playing"}
+                  {room.status === RoomStatusEnum.WAITING ? "Open" : "Playing"}
                 </Badge>
               </div>
             </CardHeader>
@@ -70,15 +71,15 @@ export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) 
                 <Button
                   type="button"
                   className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium"
-                  disabled={room.status === "in_progress" || room.player_ids.length >= room.max_players}
+                  disabled={room.status === RoomStatusEnum.IN_PROGRESS || room.player_ids.length >= room.max_players}
                   onClick={() => onRoomAction(room.id, isPlayerInRoom)}
                 >
-                  {room.status === "in_progress" 
-                    ? "Game in Progress" 
-                    : room.player_ids.length >= room.max_players 
-                      ? "Room Full" 
-                      : isPlayerInRoom 
-                        ? "Enter Room" 
+                  {room.status === RoomStatusEnum.IN_PROGRESS
+                    ? "Game in Progress"
+                    : room.player_ids.length >= room.max_players
+                      ? "Room Full"
+                      : isPlayerInRoom
+                        ? "Enter Room"
                         : "Join Game"}
                 </Button>
               </div>

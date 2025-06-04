@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { GameRoom } from "@/features/game-room/types";
+import {RoomStatusEnum} from "@/consts";
 
 interface LobbyStatsProps {
   rooms: GameRoom[];
@@ -7,9 +8,9 @@ interface LobbyStatsProps {
 
 export const LobbyStats = ({ rooms }: LobbyStatsProps) => {
   // Filter out finished games
-  const activeRooms = rooms.filter(room => room.status !== 'finished');
-  const totalPlayers = activeRooms.reduce((acc, room) => acc + room.player_ids.length, 0);
-  const openGames = activeRooms.filter(room => room.status === "waiting").length;
+  const activeRooms: GameRoom[] = rooms.filter(room => room.status !== RoomStatusEnum.FINISHED);
+  const totalPlayers: number = activeRooms.reduce((acc, room) => acc + room.player_ids.length, 0);
+  const openGames: number = activeRooms.filter(room => room.status === RoomStatusEnum.WAITING).length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">

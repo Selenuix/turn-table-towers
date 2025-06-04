@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GameRoom, Player } from '../types';
 import { Play, LogOut } from 'lucide-react';
+import {RoomStatusEnum} from "@/consts";
 
 interface RoomActionsProps {
   room: GameRoom;
@@ -10,14 +11,14 @@ interface RoomActionsProps {
   onLeaveRoom: () => void;
 }
 
-export const RoomActions = ({ 
-  room, 
-  currentUserId, 
-  onStartGame, 
-  onLeaveRoom 
+export const RoomActions = ({
+  room,
+  currentUserId,
+  onStartGame,
+  onLeaveRoom
 }: RoomActionsProps) => {
   const isOwner = room.owner_id === currentUserId;
-  const canStartGame = isOwner && room.status === 'waiting' && room.player_ids.length >= 2;
+  const canStartGame = isOwner && room.status === RoomStatusEnum.WAITING && room.player_ids.length >= 2;
 
   return (
     <Card className="bg-slate-800/50 border-slate-700">
@@ -46,4 +47,4 @@ export const RoomActions = ({
       </CardContent>
     </Card>
   );
-}; 
+};

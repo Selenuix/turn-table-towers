@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Copy, Settings, Shuffle } from 'lucide-react';
 import { GameRoom, Player } from '../types';
+import {RoomStatusEnum} from "@/consts";
 
 interface RoomInfoProps {
   room: GameRoom;
@@ -20,14 +21,14 @@ export const RoomInfo = ({ room, players, isGameInProgress, onCopyInviteLink }: 
             <Settings className="w-5 h-5 mr-2" />
             Room Information
           </CardTitle>
-          <Badge 
+          <Badge
             className={
-              room.status === 'waiting' 
-                ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+              room.status === RoomStatusEnum.WAITING
+                ? 'bg-green-500/20 text-green-400 border-green-500/30'
                 : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
             }
           >
-            {room.status === 'waiting' ? 'Waiting for Players' : 'Game in Progress'}
+            {room.status === RoomStatusEnum.WAITING ? 'Waiting for Players' : 'Game in Progress'}
           </Badge>
         </div>
       </CardHeader>
@@ -78,4 +79,4 @@ export const RoomInfo = ({ room, players, isGameInProgress, onCopyInviteLink }: 
       </CardContent>
     </Card>
   );
-}; 
+};

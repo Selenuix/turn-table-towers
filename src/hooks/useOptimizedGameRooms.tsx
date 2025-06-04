@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from './useAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { GameRoom, Player, GameState } from '@/features/game-room/types';
+import {RoomStatusEnum} from "@/consts";
 
 export const useOptimizedGameRooms = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
@@ -130,7 +131,7 @@ export const useOptimizedGameRooms = () => {
 
       if (!roomData) throw new Error('Room not found');
       if (roomData.player_ids.length >= roomData.max_players) throw new Error('Room is full');
-      if (roomData.status !== 'waiting') throw new Error('Game is already in progress');
+      if (roomData.status !== RoomStatusEnum.WAITING) throw new Error('Game is already in progress');
       if (roomData.player_ids.includes(user.id)) return { data: roomData, error: null };
 
       const updatedPlayerIds = [...roomData.player_ids, user.id];
@@ -169,7 +170,7 @@ export const useOptimizedGameRooms = () => {
       const { error: updateError } = await supabase
         .from('game_rooms')
         .update({
-          status: 'in_progress',
+          status: RoomStatusEnum.IN_PROGRESS,
           updated_at: new Date().toISOString()
         })
         .eq('id', roomId);

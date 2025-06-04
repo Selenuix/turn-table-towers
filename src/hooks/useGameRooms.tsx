@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { GameRoom, Player } from '@/features/game-room/types';
 import { useLocation } from 'react-router-dom';
+import {RoomStatusEnum} from "@/consts";
 
 export const useGameRooms = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
@@ -65,8 +66,8 @@ export const useGameRooms = () => {
     try {
       const { error } = await supabase
         .from('game_rooms')
-        .update({ 
-          status: 'in_progress',
+        .update({
+          status: RoomStatusEnum.IN_PROGRESS,
           updated_at: new Date().toISOString()
         })
         .eq('id', roomId);
@@ -83,7 +84,7 @@ export const useGameRooms = () => {
       const { data, error } = await supabase
         .from('game_rooms')
         .select('*')
-        .neq('status', 'finished')
+        .neq('status', RoomStatusEnum.FINISHED)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -163,7 +164,7 @@ export const useGameRooms = () => {
         throw new Error('Room is full');
       }
 
-      if (roomData.status !== 'waiting') {
+      if (roomData.status !==  RoomStatusEnum.WAITING) {
         throw new Error('Game is already in progress');
       }
 
