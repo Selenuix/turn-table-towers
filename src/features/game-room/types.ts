@@ -49,9 +49,25 @@ export interface PlayerState {
 }
 
 export interface GameAction {
-  type: string;
+  type: GameActionType;
   player_id: string;
   target_player_id?: string;
   cards?: Card[];
   card_indices?: number[];
+  stored_card_indices?: number[];
+}
+
+export type GameActionType = 
+  | 'change_own_shield'
+  | 'change_other_shield'
+  | 'store_card'
+  | 'attack'
+  | 'give_stored_cards';
+
+export interface AttackResult {
+  success: boolean;
+  damage: number;
+  attackValue: number;
+  shieldValue: number;
+  usedStoredCards: Card[];
 }

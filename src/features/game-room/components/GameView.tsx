@@ -1,8 +1,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { GameState, Player } from "@/features/game-room/types";
 import { useGameState } from "@/hooks/useGameState";
+import { SetupPhase } from './SetupPhase';
+import { PlayerBoard } from './PlayerBoard';
+import { GameActions } from './GameActions';
 
 interface GameViewProps {
   roomId: string;
@@ -17,7 +19,8 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
     error,
     setupPlayerCards,
     isPlayerTurn,
-    getPlayerHand
+    getPlayerHand,
+    performGameAction
   } = useGameState(roomId, userId);
 
   if (loading) {
@@ -35,125 +38,119 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
   const playerState = gameState.player_states[userId];
   const isSetupPhase = playerState && !playerState.setup_complete;
 
+  const handleSetupComplete = async (shieldIndex: number, hpIndices: number[]) => {
+    await setupPlayerCards(shieldIndex, hpIndices);
+  };
+
+  const handleGameAction = async (action: string, data?: any) => {
+    await performGameAction(action, data);
+  };
+
   if (isSetupPhase) {
-    return <SetupPhase roomId={roomId} userId={userId} gameState={gameState} setupPlayerCards={setupPlayerCards} />;
+    return (
+      <div className="space-y-6">
+        <SetupPhase 
+          playerState={playerState}
+          onSetupComplete={handleSetupComplete}
+        />
+      </div>
+    );
+  }
+
+  // Check if all players have completed setup
+  const allPlayersSetup = players.every(player => 
+    gameState.player_states[player.id]?.setup_complete
+  );
+
+  if (!allPlayersSetup) {
+    return (
+      <Card className="bg-slate-800/50 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white">Waiting for Setup</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-slate-300">
+            Waiting for all players to complete their card setup...
+          </div>
+          <div className="mt-4 space-y-2">
+            {players.map(player => {
+              const isComplete = gameState.player_states[player.id]?.setup_complete;
+              return (
+                <div key={player.id} className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${isComplete ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                  <span className="text-white">
+                    {player.username || player.email?.split('@')[0]}
+                    {player.id === userId && ' (You)'}
+                  </span>
+                  <span className="text-slate-400">
+                    {isComplete ? '✓ Ready' : 'Setting up...'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div className="text-white space-y-6">
+    <div className="space-y-6">
+      {/* Game Status */}
       <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white">Game in Progress</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-medium mb-2">Players</h3>
-              <div className="space-y-2">
-                {players.map(player => {
-                  const playerGameState = gameState.player_states[player.id];
-                  const isCurrentTurn = gameState.current_player_id === player.id;
-                  
-                  return (
-                    <div 
-                      key={player.id} 
-                      className={`p-3 rounded-lg ${isCurrentTurn ? 'bg-purple-900/50 border border-purple-500/50' : 'bg-slate-700/30'}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mr-2">
-                            {player.username?.[0]?.toUpperCase() || 'U'}
-                          </div>
-                          <span>{player.username || player.email?.split('@')[0]} {player.id === userId && '(You)'}</span>
-                        </div>
-                        {playerGameState && (
-                          <div className="flex items-center space-x-2">
-                            <span className="text-red-400">♥ {playerGameState.hp || 0}</span>
-                            {isCurrentTurn && <span className="text-yellow-400">●</span>}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <h2 className="text-xl font-bold text-white mb-1">Shield Card Game</h2>
+              <div className="text-slate-300">
+                Current Turn: {
+                  players.find(p => p.id === gameState.current_player_id)?.username || 
+                  players.find(p => p.id === gameState.current_player_id)?.email?.split('@')[0] ||
+                  'Unknown Player'
+                }
               </div>
             </div>
-            
-            <div>
-              <h3 className="text-lg font-medium mb-2">Your Hand</h3>
-              <div className="flex flex-wrap gap-2">
-                {getPlayerHand().map((card, index) => (
-                  <div key={index} className="w-12 h-16 bg-white rounded-lg text-black flex flex-col items-center justify-center">
-                    <div className={card.suit === 'hearts' || card.suit === 'diamonds' ? 'text-red-600' : 'text-black'}>
-                      {card.rank === 'ace' ? 'A' : 
-                       card.rank === 'jack' ? 'J' : 
-                       card.rank === 'queen' ? 'Q' : 
-                       card.rank === 'king' ? 'K' : card.rank}
-                    </div>
-                    <div className={card.suit === 'hearts' || card.suit === 'diamonds' ? 'text-red-600' : 'text-black'}>
-                      {card.suit === 'hearts' ? '♥' : 
-                       card.suit === 'diamonds' ? '♦' : 
-                       card.suit === 'clubs' ? '♣' : '♠'}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="text-right">
+              <div className="text-slate-400 text-sm">Cards in Deck</div>
+              <div className="text-white text-lg font-bold">{gameState.deck.length}</div>
             </div>
-          </div>
-
-          <div className="mt-6">
-            <h3 className="text-lg font-medium mb-2">Game Status</h3>
-            {isPlayerTurn() ? (
-              <div className="bg-green-900/30 border border-green-500/50 p-4 rounded-lg">
-                <p className="mb-3">It's your turn!</p>
-                <div className="flex space-x-3">
-                  <Button>Draw Card</Button>
-                  <Button variant="secondary" disabled={getPlayerHand().length === 0}>Play Card</Button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-slate-700/30 p-4 rounded-lg">
-                <p>Waiting for {players.find(p => p.id === gameState.current_player_id)?.username || 'other player'} to make a move...</p>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
-};
 
-interface SetupPhaseProps {
-  roomId: string;
-  userId: string;
-  gameState: GameState;
-  setupPlayerCards: (shieldIndex: number, hpIndices: number[]) => Promise<{data: any, error: any}>;
-}
-
-const SetupPhase = ({ roomId, userId, gameState, setupPlayerCards }: SetupPhaseProps) => {
-  return (
-    <div className="text-white">
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white">Setup Your Cards</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4">Each player needs to select 1 shield card and 3 HP cards from their hand before the game can begin.</p>
-          
-          <div className="mt-6">
-            <h3 className="text-lg font-medium mb-2">Your Hand</h3>
-            <p className="text-sm text-slate-300 mb-2">Select cards to continue...</p>
-            
-            {/* Implementation of card selection UI to be completed */}
-            <Button 
-              onClick={() => setupPlayerCards(0, [1, 2, 3])} 
-              className="mt-4"
-            >
-              Automatically Set Up Cards (Demo)
-            </Button>
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Player Boards */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="grid gap-4">
+            {players.map(player => {
+              const playerGameState = gameState.player_states[player.id];
+              const isCurrentTurn = gameState.current_player_id === player.id;
+              const isCurrentUser = player.id === userId;
+              
+              return (
+                <PlayerBoard
+                  key={player.id}
+                  player={player}
+                  playerState={playerGameState}
+                  isCurrentPlayer={isCurrentTurn}
+                  isCurrentUser={isCurrentUser}
+                />
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Game Actions */}
+        <div className="lg:col-span-1">
+          <GameActions
+            isPlayerTurn={isPlayerTurn()}
+            currentPlayerState={playerState}
+            players={players.filter(p => p.id !== userId)}
+            playerStates={gameState.player_states}
+            onAction={handleGameAction}
+          />
+        </div>
+      </div>
     </div>
   );
 };

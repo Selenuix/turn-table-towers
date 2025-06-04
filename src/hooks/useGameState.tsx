@@ -116,6 +116,38 @@ export const useGameState = (roomId: string, userId: string) => {
     }
   };
 
+  const performGameAction = async (action: string, data?: any) => {
+    try {
+      console.log('Performing game action:', action, data);
+      
+      // For now, we'll implement basic actions
+      // In a full implementation, you'd have a comprehensive RPC function for all game actions
+      
+      switch (action) {
+        case 'change_own_shield':
+          // This would call an RPC function to draw a card and replace the shield
+          console.log('Changing own shield');
+          break;
+        case 'change_other_shield':
+          console.log('Changing other player shield for:', data?.targetId);
+          break;
+        case 'store_card':
+          console.log('Storing a card');
+          break;
+        case 'attack':
+          console.log('Attacking player:', data?.targetId, 'with stored cards:', data?.storedCardIndices);
+          break;
+        default:
+          console.log('Unknown action:', action);
+      }
+      
+      return { success: true, error: null };
+    } catch (err) {
+      console.error('Error performing game action:', err);
+      return { success: false, error: err };
+    }
+  };
+
   const isPlayerTurn = () => {
     if (!gameState || !gameState.current_player_id) return false;
     return gameState.current_player_id === userId;
@@ -131,6 +163,7 @@ export const useGameState = (roomId: string, userId: string) => {
     loading,
     error,
     setupPlayerCards,
+    performGameAction,
     isPlayerTurn,
     getPlayerHand
   };
