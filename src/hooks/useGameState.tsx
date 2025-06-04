@@ -52,16 +52,20 @@ export const useGameState = (roomId: string, userId: string) => {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_states', filter: `room_id=eq.${roomId}` },
         (payload) => {
-          if (payload.new) {
+          console.log('Game state update received:', payload.eventType);
+          
+          // Type guard to ensure payload.new exists and has the expected structure
+          if (payload.new && typeof payload.new === 'object' && 'id' in payload.new) {
+            const newData = payload.new as any;
             const transformedGameState: GameState = {
-              id: payload.new.id,
-              room_id: payload.new.room_id,
-              current_player_id: payload.new.current_player_id,
-              deck: payload.new.deck,
-              discard_pile: payload.new.discard_pile,
-              created_at: payload.new.created_at,
-              updated_at: payload.new.updated_at,
-              player_states: (payload.new.player_states as Record<string, any>) || {}
+              id: newData.id,
+              room_id: newData.room_id,
+              current_player_id: newData.current_player_id,
+              deck: newData.deck,
+              discard_pile: newData.discard_pile,
+              created_at: newData.created_at,
+              updated_at: newData.updated_at,
+              player_states: (newData.player_states as Record<string, any>) || {}
             };
             setGameState(transformedGameState);
           }
@@ -70,6 +74,7 @@ export const useGameState = (roomId: string, userId: string) => {
       .subscribe();
 
     return () => {
+      console.log('Cleaning up game state subscription:', channelName);
       supabase.removeChannel(channel);
     };
   }, [roomId, userId]);
