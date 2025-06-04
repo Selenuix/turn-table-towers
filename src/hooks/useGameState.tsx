@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GameState, Card, PlayerState } from '@/features/game-room/types';
 
@@ -7,6 +7,8 @@ export const useGameState = (roomId: string, userId: string) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
+  const subscriptionRef = useRef<any>(null);
+  const channelNameRef = useRef<string>('');
 
   useEffect(() => {
     if (!roomId) return;
@@ -43,10 +45,21 @@ export const useGameState = (roomId: string, userId: string) => {
       }
     };
 
+    // Clean up any existing subscription before creating a new one
+    if (subscriptionRef.current) {
+      console.log('Cleaning up existing game state subscription:', channelNameRef.current);
+      supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
+    }
+
     fetchGameState();
 
-    // Set up real-time subscription with unique channel name to prevent duplicates
+    // Set up real-time subscription with unique channel name
     const channelName = `game_state_${roomId}_${userId}_${Date.now()}`;
+    channelNameRef.current = channelName;
+    
+    console.log('Creating game state subscription:', channelName);
+    
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', 
@@ -73,9 +86,15 @@ export const useGameState = (roomId: string, userId: string) => {
       )
       .subscribe();
 
+    subscriptionRef.current = channel;
+
     return () => {
-      console.log('Cleaning up game state subscription:', channelName);
-      supabase.removeChannel(channel);
+      if (subscriptionRef.current) {
+        console.log('Cleaning up game state subscription on unmount:', channelNameRef.current);
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+        channelNameRef.current = '';
+      }
     };
   }, [roomId, userId]);
 
