@@ -15,6 +15,8 @@ export const useGameState = (roomId: string, userId: string) => {
 
     const fetchGameState = async () => {
       try {
+        console.log('Fetching game state for room:', roomId);
+        
         // Use .maybeSingle() instead of .single() to handle cases with no data
         const { data, error } = await supabase
           .from('game_states')
@@ -22,10 +24,14 @@ export const useGameState = (roomId: string, userId: string) => {
           .eq('room_id', roomId)
           .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching game state:', error);
+          throw error;
+        }
         
         // Transform the data to match our GameState interface if data exists
         if (data) {
+          console.log('Game state found:', data);
           const transformedGameState: GameState = {
             id: data.id,
             room_id: data.room_id,
@@ -39,6 +45,7 @@ export const useGameState = (roomId: string, userId: string) => {
           setGameState(transformedGameState);
         } else {
           // No game state found - this is expected if the game hasn't started yet
+          console.log('No game state found for room:', roomId);
           setGameState(null);
         }
       } catch (err) {
@@ -69,7 +76,7 @@ export const useGameState = (roomId: string, userId: string) => {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'game_states', filter: `room_id=eq.${roomId}` },
         (payload) => {
-          console.log('Game state update received:', payload.eventType);
+          console.log('Game state update received:', payload.eventType, payload);
           
           // Type guard to ensure payload.new exists and has the expected structure
           if (payload.new && typeof payload.new === 'object' && 'id' in payload.new) {
@@ -106,6 +113,8 @@ export const useGameState = (roomId: string, userId: string) => {
 
   const setupPlayerCards = async (shieldIndex: number, hpIndices: number[]) => {
     try {
+      console.log('Setting up player cards:', { shieldIndex, hpIndices });
+      
       const { data, error } = await supabase
         .rpc('update_player_cards', {
           p_room_id: roomId,
@@ -114,7 +123,12 @@ export const useGameState = (roomId: string, userId: string) => {
           p_hp_indices: hpIndices
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error setting up player cards:', error);
+        throw error;
+      }
+      
+      console.log('Player cards setup successful:', data);
       return { data, error: null };
     } catch (err) {
       console.error('Error setting up player cards:', err);

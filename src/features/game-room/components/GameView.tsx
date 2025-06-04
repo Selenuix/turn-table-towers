@@ -24,19 +24,58 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
   } = useGameState(roomId, userId);
 
   if (loading) {
-    return <div className="text-white">Loading game...</div>;
+    return (
+      <Card className="bg-slate-800/50 border-slate-700">
+        <CardContent className="p-8 text-center">
+          <div className="text-white text-lg">Loading game...</div>
+          <div className="text-slate-400 text-sm mt-2">
+            Setting up game state...
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (error) {
-    return <div className="text-red-400">Error loading game: {error.message}</div>;
+    return (
+      <Card className="bg-red-900/20 border-red-700">
+        <CardContent className="p-8 text-center">
+          <div className="text-red-400 text-lg">Error loading game</div>
+          <div className="text-red-300 text-sm mt-2">{error.message}</div>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (!gameState) {
-    return <div className="text-white">Game not found</div>;
+    return (
+      <Card className="bg-slate-800/50 border-slate-700">
+        <CardContent className="p-8 text-center">
+          <div className="text-white text-lg">Initializing game...</div>
+          <div className="text-slate-400 text-sm mt-2">
+            Please wait while the game is being set up.
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   const playerState = gameState.player_states[userId];
-  const isSetupPhase = playerState && !playerState.setup_complete;
+  
+  if (!playerState) {
+    return (
+      <Card className="bg-yellow-900/20 border-yellow-700">
+        <CardContent className="p-8 text-center">
+          <div className="text-yellow-400 text-lg">Player not found in game</div>
+          <div className="text-yellow-300 text-sm mt-2">
+            There seems to be an issue with your player state.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isSetupPhase = !playerState.setup_complete;
 
   const handleSetupComplete = async (shieldIndex: number, hpIndices: number[]) => {
     await setupPlayerCards(shieldIndex, hpIndices);
