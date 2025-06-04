@@ -8,13 +8,15 @@ interface PlayerBoardProps {
   playerState: PlayerState;
   isCurrentPlayer: boolean;
   isCurrentUser: boolean;
+  allPlayersSetup: boolean;
 }
 
-export const PlayerBoard = ({ 
-  player, 
-  playerState, 
-  isCurrentPlayer, 
-  isCurrentUser 
+export const PlayerBoard = ({
+  player,
+  playerState,
+  isCurrentPlayer,
+  isCurrentUser,
+  allPlayersSetup
 }: PlayerBoardProps) => {
   return (
     <div className={`
@@ -51,7 +53,7 @@ export const PlayerBoard = ({
             <div className="text-xs text-slate-300 mb-1">Shield ({playerState.shield ? getCardValue(playerState.shield) : 0})</div>
             <div className="flex justify-center">
               {playerState.shield ? (
-                <CardComponent card={playerState.shield} faceDown={!isCurrentUser} />
+                <CardComponent card={playerState.shield} faceDown={!isCurrentUser && !allPlayersSetup} />
               ) : (
                 <div className="w-16 h-24 border-2 border-dashed border-slate-500 rounded-lg"></div>
               )}
@@ -63,10 +65,10 @@ export const PlayerBoard = ({
             <div className="text-xs text-slate-300 mb-1">HP Cards</div>
             <div className="flex justify-center space-x-1">
               {playerState.hp_cards?.map((card, index) => (
-                <CardComponent 
-                  key={index} 
-                  card={card} 
-                  faceDown={!isCurrentUser} 
+                <CardComponent
+                  key={index}
+                  card={card}
+                  faceDown={!isCurrentUser && !allPlayersSetup}
                   className="w-12 h-18 text-xs"
                 />
               )) || Array(3).fill(0).map((_, index) => (

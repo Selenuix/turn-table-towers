@@ -65,9 +65,9 @@ export const PlayerList = ({ room, players, currentUserId, isGameInProgress }: P
               </div>
             </div>
           ))}
-          
-          {/* Empty slots */}
-          {Array.from({ length: room.max_players - players.length }, (_, index) => (
+
+          {/* Empty slots - only show when game is not in progress */}
+          {!isGameInProgress && Array.from({ length: room.max_players - players.length }, (_, index) => (
             <div
               key={`empty-${index}`}
               className="flex items-center p-4 bg-slate-700/10 rounded-lg border-2 border-dashed border-slate-600"
@@ -85,4 +85,4 @@ export const PlayerList = ({ room, players, currentUserId, isGameInProgress }: P
       </CardContent>
     </Card>
   );
-}; 
+};

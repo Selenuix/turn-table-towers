@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GameState, Card, PlayerState } from '@/features/game-room/types';
 
@@ -7,114 +7,109 @@ export const useGameState = (roomId: string, userId: string) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
-  const subscriptionRef = useRef<any>(null);
-  const channelNameRef = useRef<string>('');
+  const isMountedRef = useRef<boolean>(true);
+  const intervalRef = useRef<number | null>(null);
+  // Fetch interval in milliseconds (5 seconds)
+  const FETCH_INTERVAL = 5000;
 
-  useEffect(() => {
+  const fetchGameState = useCallback(async () => {
     if (!roomId) return;
 
-    const fetchGameState = async () => {
-      try {
-        console.log('Fetching game state for room:', roomId);
-        
-        // Use .maybeSingle() instead of .single() to handle cases with no data
-        const { data, error } = await supabase
-          .from('game_states')
-          .select('*')
-          .eq('room_id', roomId)
-          .maybeSingle();
+    try {
+      console.log('Fetching game state for room:', roomId);
 
-        if (error) {
-          console.error('Error fetching game state:', error);
-          throw error;
-        }
-        
-        // Transform the data to match our GameState interface if data exists
-        if (data) {
-          console.log('Game state found:', data);
-          const transformedGameState: GameState = {
-            id: data.id,
-            room_id: data.room_id,
-            current_player_id: data.current_player_id,
-            deck: data.deck,
-            discard_pile: data.discard_pile,
-            created_at: data.created_at,
-            updated_at: data.updated_at,
-            player_states: (data.player_states as Record<string, any>) || {}
-          };
+      // Use .maybeSingle() instead of .single() to handle cases with no data
+      const { data, error } = await supabase
+        .from('game_states')
+        .select('*')
+        .eq('room_id', roomId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching game state:', error);
+        throw error;
+      }
+
+      // Transform the data to match our GameState interface if data exists
+      if (data) {
+        console.log('Game state found:', data);
+        const transformedGameState: GameState = {
+          id: data.id,
+          room_id: data.room_id,
+          current_player_id: data.current_player_id,
+          deck: data.deck,
+          discard_pile: data.discard_pile,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          player_states: (data.player_states as Record<string, any>) || {}
+        };
+        if (isMountedRef.current) {
           setGameState(transformedGameState);
-        } else {
-          // No game state found - this is expected if the game hasn't started yet
-          console.log('No game state found for room:', roomId);
+        }
+      } else {
+        // No game state found - this is expected if the game hasn't started yet
+        console.log('No game state found for room:', roomId);
+        if (isMountedRef.current) {
           setGameState(null);
         }
-      } catch (err) {
-        console.error('Error fetching game state:', err);
+      }
+    } catch (err) {
+      console.error('Error fetching game state:', err);
+      if (isMountedRef.current) {
         setError(err);
-      } finally {
+      }
+    } finally {
+      if (isMountedRef.current) {
         setLoading(false);
       }
-    };
+    }
+  }, [roomId]);
 
-    // Clean up any existing subscription before creating a new one
-    if (subscriptionRef.current) {
-      console.log('Cleaning up existing game state subscription:', channelNameRef.current);
-      supabase.removeChannel(subscriptionRef.current);
-      subscriptionRef.current = null;
+  const setupFetchInterval = useCallback(() => {
+    // Clear any existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
 
+    // Set up a new interval for fetching game state
+    intervalRef.current = window.setInterval(() => {
+      if (isMountedRef.current) {
+        console.log('Fetching game state on interval');
+        fetchGameState();
+      }
+    }, FETCH_INTERVAL);
+  }, [fetchGameState]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    if (!roomId) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch initial data
     fetchGameState();
 
-    // Set up real-time subscription with unique channel name
-    const channelName = `game_state_${roomId}_${userId}_${Date.now()}`;
-    channelNameRef.current = channelName;
-    
-    console.log('Creating game state subscription:', channelName);
-    
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'game_states', filter: `room_id=eq.${roomId}` },
-        (payload) => {
-          console.log('Game state update received:', payload.eventType, payload);
-          
-          // Type guard to ensure payload.new exists and has the expected structure
-          if (payload.new && typeof payload.new === 'object' && 'id' in payload.new) {
-            const newData = payload.new as any;
-            const transformedGameState: GameState = {
-              id: newData.id,
-              room_id: newData.room_id,
-              current_player_id: newData.current_player_id,
-              deck: newData.deck,
-              discard_pile: newData.discard_pile,
-              created_at: newData.created_at,
-              updated_at: newData.updated_at,
-              player_states: (newData.player_states as Record<string, any>) || {}
-            };
-            setGameState(transformedGameState);
-          } else if (payload.eventType === 'DELETE') {
-            setGameState(null);
-          }
-        }
-      )
-      .subscribe();
-
-    subscriptionRef.current = channel;
+    // Set up interval for fetching game state
+    setupFetchInterval();
 
     return () => {
-      if (subscriptionRef.current) {
-        console.log('Cleaning up game state subscription on unmount:', channelNameRef.current);
-        supabase.removeChannel(subscriptionRef.current);
-        subscriptionRef.current = null;
-        channelNameRef.current = '';
+      isMountedRef.current = false;
+
+      // Clean up interval on unmount
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, fetchGameState, setupFetchInterval]);
 
   const setupPlayerCards = async (shieldIndex: number, hpIndices: number[]) => {
     try {
       console.log('Setting up player cards:', { shieldIndex, hpIndices });
-      
+
       const { data, error } = await supabase
         .rpc('update_player_cards', {
           p_room_id: roomId,
@@ -127,7 +122,7 @@ export const useGameState = (roomId: string, userId: string) => {
         console.error('Error setting up player cards:', error);
         throw error;
       }
-      
+
       console.log('Player cards setup successful:', data);
       return { data, error: null };
     } catch (err) {
@@ -139,10 +134,10 @@ export const useGameState = (roomId: string, userId: string) => {
   const performGameAction = async (action: string, data?: any) => {
     try {
       console.log('Performing game action:', action, data);
-      
+
       // For now, we'll implement basic actions
       // In a full implementation, you'd have a comprehensive RPC function for all game actions
-      
+
       switch (action) {
         case 'change_own_shield':
           // This would call an RPC function to draw a card and replace the shield
@@ -160,7 +155,7 @@ export const useGameState = (roomId: string, userId: string) => {
         default:
           console.log('Unknown action:', action);
       }
-      
+
       return { success: true, error: null };
     } catch (err) {
       console.error('Error performing game action:', err);

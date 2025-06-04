@@ -14,10 +14,12 @@ interface SetupPhaseProps {
 export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) => {
   const [selectedShield, setSelectedShield] = useState<number | null>(null);
   const [selectedHP, setSelectedHP] = useState<number[]>([]);
+  const [cardsRevealed, setCardsRevealed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const toggleHPCard = (index: number) => {
     if (index === selectedShield) return; // Can't select shield as HP
-    
+
     setSelectedHP(prev => {
       if (prev.includes(index)) {
         return prev.filter(i => i !== index);
@@ -36,8 +38,17 @@ export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) =>
   };
 
   const handleSubmit = () => {
-    if (selectedShield !== null && selectedHP.length === 3) {
-      onSetupComplete(selectedShield, selectedHP);
+    if (selectedShield !== null && selectedHP.length === 3 && !isSubmitting) {
+      // Set submitting state to prevent multiple clicks
+      setIsSubmitting(true);
+
+      // First reveal the cards
+      setCardsRevealed(true);
+
+      // After a short delay, complete the setup
+      setTimeout(() => {
+        onSetupComplete(selectedShield, selectedHP);
+      }, 2000); // 2 second delay to allow player to see the card values
     }
   };
 
@@ -52,7 +63,16 @@ export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) =>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="text-slate-300">
-          <p className="mb-2">Select 1 shield card and 3 HP cards from your hand:</p>
+          {cardsRevealed ? (
+            <div className="p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg mb-4">
+              <p className="text-blue-300 font-medium">Revealing your card values!</p>
+              <p className="text-sm text-blue-400 mt-1">
+                Now you can see the actual values of your selected cards.
+              </p>
+            </div>
+          ) : (
+            <p className="mb-2">Select 1 shield card and 3 HP cards from your hand:</p>
+          )}
           <ul className="text-sm text-slate-400 space-y-1">
             <li>• Shield card protects you from attacks</li>
             <li>• HP cards determine your health points</li>
@@ -67,6 +87,7 @@ export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) =>
               <div key={index} className="text-center">
                 <CardComponent
                   card={card}
+                  faceDown={!cardsRevealed}
                   selected={selectedShield === index || selectedHP.includes(index)}
                   onClick={() => {
                     if (selectedShield === index) {
@@ -80,9 +101,11 @@ export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) =>
                     }
                   }}
                 />
-                <div className="text-xs text-slate-400 mt-1">
-                  Value: {getCardValue(card)}
-                </div>
+                {cardsRevealed && (
+                  <div className="text-xs text-slate-400 mt-1">
+                    Value: {getCardValue(card)}
+                  </div>
+                )}
                 {selectedShield === index && (
                   <div className="text-xs text-blue-400 font-medium">Shield</div>
                 )}
@@ -98,23 +121,29 @@ export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) =>
           <div className="p-3 bg-slate-700/50 rounded-lg">
             <div className="text-slate-300 text-sm">Shield Value</div>
             <div className="text-white text-lg font-bold">
-              {selectedShield !== null ? getCardValue(playerState.hand[selectedShield]) : '-'}
+              {cardsRevealed && selectedShield !== null
+                ? getCardValue(playerState.hand[selectedShield])
+                : (selectedShield !== null ? '?' : '-')}
             </div>
           </div>
           <div className="p-3 bg-slate-700/50 rounded-lg">
             <div className="text-slate-300 text-sm">Total HP</div>
             <div className="text-white text-lg font-bold">
-              {selectedHP.length === 3 ? totalHP : '-'}
+              {cardsRevealed && selectedHP.length === 3
+                ? totalHP
+                : (selectedHP.length === 3 ? '?' : '-')}
             </div>
           </div>
         </div>
 
-        <Button 
+        <Button
           onClick={handleSubmit}
-          disabled={!canSubmit}
+          disabled={!canSubmit || isSubmitting}
           className="w-full"
         >
-          Confirm Setup
+          {isSubmitting
+            ? (cardsRevealed ? "Finalizing Setup..." : "Revealing Cards...")
+            : "Confirm Setup"}
         </Button>
       </CardContent>
     </Card>

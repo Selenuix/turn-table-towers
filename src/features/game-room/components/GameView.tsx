@@ -13,9 +13,9 @@ interface GameViewProps {
 }
 
 export const GameView = ({ roomId, userId, players }: GameViewProps) => {
-  const { 
-    gameState, 
-    loading, 
+  const {
+    gameState,
+    loading,
     error,
     setupPlayerCards,
     isPlayerTurn,
@@ -61,7 +61,7 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
   }
 
   const playerState = gameState.player_states[userId];
-  
+
   if (!playerState) {
     return (
       <Card className="bg-yellow-900/20 border-yellow-700">
@@ -88,7 +88,7 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
   if (isSetupPhase) {
     return (
       <div className="space-y-6">
-        <SetupPhase 
+        <SetupPhase
           playerState={playerState}
           onSetupComplete={handleSetupComplete}
         />
@@ -97,7 +97,7 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
   }
 
   // Check if all players have completed setup
-  const allPlayersSetup = players.every(player => 
+  const allPlayersSetup = players.every(player =>
     gameState.player_states[player.id]?.setup_complete
   );
 
@@ -143,7 +143,7 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
               <h2 className="text-xl font-bold text-white mb-1">Shield Card Game</h2>
               <div className="text-slate-300">
                 Current Turn: {
-                  players.find(p => p.id === gameState.current_player_id)?.username || 
+                  players.find(p => p.id === gameState.current_player_id)?.username ||
                   players.find(p => p.id === gameState.current_player_id)?.email?.split('@')[0] ||
                   'Unknown Player'
                 }
@@ -165,7 +165,7 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
               const playerGameState = gameState.player_states[player.id];
               const isCurrentTurn = gameState.current_player_id === player.id;
               const isCurrentUser = player.id === userId;
-              
+
               return (
                 <PlayerBoard
                   key={player.id}
@@ -173,6 +173,7 @@ export const GameView = ({ roomId, userId, players }: GameViewProps) => {
                   playerState={playerGameState}
                   isCurrentPlayer={isCurrentTurn}
                   isCurrentUser={isCurrentUser}
+                  allPlayersSetup={allPlayersSetup}
                 />
               );
             })}

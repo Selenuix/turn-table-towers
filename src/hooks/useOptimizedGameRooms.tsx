@@ -3,17 +3,17 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from './useAuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { GameRoom, Player } from '@/features/game-room/types';
+import { GameRoom, Player, GameState } from '@/features/game-room/types';
 
 export const useOptimizedGameRooms = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuthContext();
   const { toast } = useToast();
-  const subscriptionRef = useRef<any>(null);
-  const channelNameRef = useRef<string>('');
-  const isSubscribedRef = useRef<boolean>(false);
   const isMountedRef = useRef<boolean>(true);
+  const intervalRef = useRef<number | null>(null);
+  // Fetch interval in milliseconds (10 seconds)
+  const FETCH_INTERVAL = 10000;
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -165,15 +165,30 @@ export const useOptimizedGameRooms = () => {
 
   const startGame = useCallback(async (roomId: string) => {
     try {
-      const { error } = await supabase
+      // Update room status to in_progress
+      const { error: updateError } = await supabase
         .from('game_rooms')
-        .update({ 
+        .update({
           status: 'in_progress',
           updated_at: new Date().toISOString()
         })
         .eq('id', roomId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Initialize game state using the RPC function
+      const { data, error } = await supabase
+        .rpc('initialize_game_state', {
+          p_room_id: roomId
+        });
+
+      if (error) {
+        console.error('Error initializing game state:', error);
+        throw error;
+      }
+
+      console.log('Game state initialized:', data);
+      return data;
     } catch (error) {
       console.error('Error starting game:', error);
       throw error;
@@ -224,25 +239,24 @@ export const useOptimizedGameRooms = () => {
     }
   }, [user, fetchRooms]);
 
-  const cleanupSubscription = useCallback(() => {
-    if (subscriptionRef.current) {
-      console.log('Cleaning up subscription:', channelNameRef.current);
-      try {
-        supabase.removeChannel(subscriptionRef.current);
-      } catch (error) {
-        console.error('Error removing channel:', error);
-      }
-      subscriptionRef.current = null;
-      isSubscribedRef.current = false;
-      channelNameRef.current = '';
+  const setupFetchInterval = useCallback(() => {
+    // Clear any existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-  }, []);
+
+    // Set up a new interval for fetching rooms
+    intervalRef.current = window.setInterval(() => {
+      if (isMountedRef.current) {
+        console.log('Fetching rooms on interval');
+        fetchRooms();
+      }
+    }, FETCH_INTERVAL);
+  }, [fetchRooms]);
 
   useEffect(() => {
     isMountedRef.current = true;
-
-    // Clean up any existing subscription first
-    cleanupSubscription();
 
     if (!user?.id) {
       setLoading(false);
@@ -252,50 +266,19 @@ export const useOptimizedGameRooms = () => {
     // Fetch initial data
     fetchRooms();
 
-    // Create new subscription with unique channel name including timestamp
-    const channelName = `game_rooms_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    channelNameRef.current = channelName;
-    
-    console.log('Creating new subscription:', channelName);
-    
-    // Add a small delay to ensure previous subscription is fully cleaned up
-    const timeoutId = setTimeout(() => {
-      if (!isMountedRef.current) return;
-
-      const channel = supabase.channel(channelName);
-      
-      channel
-        .on('postgres_changes',
-          { event: '*', schema: 'public', table: 'game_rooms' },
-          async (payload) => {
-            if (!isMountedRef.current) return;
-            
-            console.log('Received room update:', payload.eventType);
-            if (payload.eventType === 'DELETE') {
-              setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
-              return;
-            }
-            await fetchRooms();
-          }
-        )
-        .subscribe((status) => {
-          console.log('Subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            isSubscribedRef.current = true;
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            isSubscribedRef.current = false;
-          }
-        });
-
-      subscriptionRef.current = channel;
-    }, 100);
+    // Set up interval for fetching rooms
+    setupFetchInterval();
 
     return () => {
       isMountedRef.current = false;
-      clearTimeout(timeoutId);
-      cleanupSubscription();
+
+      // Clean up interval on unmount
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [user?.id, fetchRooms, cleanupSubscription]);
+  }, [user?.id, fetchRooms, setupFetchInterval]);
 
   return {
     rooms,
