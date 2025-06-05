@@ -24,11 +24,6 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Game Status */}
-      <div className="text-white">
-        Game Status: {gameState.status}
-      </div>
-
       {/* Players Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {Object.entries(gameState.player_states || {}).map(([playerId, playerState]: [string, any]) => (

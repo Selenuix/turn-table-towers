@@ -5,7 +5,7 @@ import {useOptimizedGameRooms} from '@/hooks/useOptimizedGameRooms';
 import {useAuthContext} from '@/hooks/useAuthContext';
 import {RoomHeader} from '@/features/game-room/components/RoomHeader';
 import {RoomContent} from '@/features/game-room/components/RoomContent';
-import {ChatPanel} from '@/features/chat/components/ChatPanel';
+import {ChatSidebar} from '@/features/chat/components/ChatSidebar';
 import {GameRoom, Player} from '@/features/game-room/types';
 import {supabase} from '@/integrations/supabase/client';
 import {RoomStatusEnum} from "@/consts";
@@ -260,34 +260,33 @@ export default function Room() {
 
   const isGameInProgress = room.status === 'in_progress';
 
-  return (<div className="min-h-screen bg-slate-900">
-      <div className="container mx-auto px-4 py-8">
-        <RoomHeader
-          room={room}
-          onCopyRoomCode={handleCopyInviteLink}
-        />
+  return (
+    <div className="min-h-screen bg-slate-900 flex">
+      <div className="flex-1 flex flex-col">
+        <div className="container mx-auto px-4 py-8">
+          <RoomHeader
+            room={room}
+            onCopyRoomCode={handleCopyInviteLink}
+          />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          <div className="lg:col-span-2">
-            <RoomContent
-              room={room}
-              players={players}
-              currentUserId={user.id}
-              isGameInProgress={isGameInProgress}
-              onStartGame={handleStartGame}
-              onLeaveRoom={handleLeaveRoom}
-              onCopyInviteLink={handleCopyInviteLink}
-            />
-          </div>
-          
-          <div className="lg:col-span-1">
-            <ChatPanel
-              roomId={room.id}
-              currentUserId={user.id}
-              players={players}
-            />
-          </div>
+          <RoomContent
+            room={room}
+            players={players}
+            currentUserId={user.id}
+            isGameInProgress={isGameInProgress}
+            onStartGame={handleStartGame}
+            onLeaveRoom={handleLeaveRoom}
+            onCopyInviteLink={handleCopyInviteLink}
+          />
         </div>
       </div>
-    </div>);
+      
+      <ChatSidebar
+        roomId={room.id}
+        currentUserId={user.id}
+        players={players}
+        room={room}
+      />
+    </div>
+  );
 }
