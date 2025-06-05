@@ -11,7 +11,7 @@ interface GameViewProps {
 }
 
 export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
-  const { gameState, isPlayerTurn, performAction } = useGameState(room.id, currentUserId);
+  const { gameState, isPlayerTurn, performGameAction } = useGameState(room.id, currentUserId);
 
   const getPlayerName = (playerId: string) => {
     const player = players.find(p => p.id === playerId);
@@ -34,7 +34,7 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
         {Object.entries(gameState.player_states || {}).map(([playerId, playerState]: [string, any]) => (
           <div key={playerId} className={`p-4 rounded-lg ${playerState?.eliminated ? 'bg-red-700' : 'bg-slate-700'}`}>
             <h3 className="text-lg font-semibold text-white">{getPlayerName(playerId)}</h3>
-            <p className="text-slate-300">Health: {playerState?.health || playerState?.hp || 0}</p>
+            <p className="text-slate-300">Health: {playerState?.hp || 0}</p>
             <p className="text-slate-300">Shield: {playerState?.shield ? 'Active' : 'None'}</p>
             <p className="text-slate-300">Cards: {playerState?.hand?.length || 0}</p>
             {playerState?.eliminated && <p className="text-red-400">Eliminated</p>}
@@ -46,7 +46,7 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
       {gameState.player_states?.[currentUserId] && (
         <div className="bg-slate-800 p-4 rounded-lg">
           <h4 className="text-xl font-semibold text-white">Your Status</h4>
-          <p className="text-slate-300">Health: {gameState.player_states[currentUserId].health || gameState.player_states[currentUserId].hp || 0}</p>
+          <p className="text-slate-300">Health: {gameState.player_states[currentUserId].hp || 0}</p>
           <p className="text-slate-300">Shield: {gameState.player_states[currentUserId].shield ? 'Active' : 'None'}</p>
           <p className="text-slate-300">Cards in Hand: {gameState.player_states[currentUserId].hand?.length || 0}</p>
         </div>
@@ -55,7 +55,7 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
       {/* Game Actions */}
       {gameState && gameState.status === 'in_progress' && gameState.player_states?.[currentUserId] && !gameState.player_states[currentUserId].eliminated && (
         <GameActions
-          isPlayerTurn={isPlayerTurn}
+          isPlayerTurn={isPlayerTurn()}
           currentPlayerState={gameState.player_states[currentUserId]}
           players={players}
           playerStates={gameState.player_states}
@@ -63,7 +63,7 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
           currentUserId={currentUserId}
           onAction={async (action: string, data?: any) => {
             try {
-              await performAction(action, data);
+              await performGameAction(action, data);
               return { success: true, error: null as any };
             } catch (error) {
               return { success: false, error: error as Error };
@@ -73,9 +73,9 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
       )}
 
       {/* Game Over Condition */}
-      {gameState.status === 'finished' && gameState.winner && (
+      {gameState.status === 'finished' && (
         <div className="text-center text-2xl text-green-500 font-bold">
-          Game Over! {getPlayerName(gameState.winner)} wins!
+          Game Over! Winner will be announced soon.
         </div>
       )}
     </div>
