@@ -9,6 +9,76 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          message_type: string
+          player_id: string
+          room_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          message_type?: string
+          player_id: string
+          room_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          message_type?: string
+          player_id?: string
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_logs: {
+        Row: {
+          action_data: Json | null
+          action_type: string
+          created_at: string
+          id: string
+          player_id: string | null
+          room_id: string
+        }
+        Insert: {
+          action_data?: Json | null
+          action_type: string
+          created_at?: string
+          id?: string
+          player_id?: string | null
+          room_id: string
+        }
+        Update: {
+          action_data?: Json | null
+          action_type?: string
+          created_at?: string
+          id?: string
+          player_id?: string | null
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_logs_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_rooms: {
         Row: {
           created_at: string
@@ -18,7 +88,7 @@ export type Database = {
           owner_id: string
           player_ids: string[] | null
           room_code: string
-          status: string
+          status: Database["public"]["Enums"]["game_status"] | null
           updated_at: string
         }
         Insert: {
@@ -29,7 +99,7 @@ export type Database = {
           owner_id: string
           player_ids?: string[] | null
           room_code: string
-          status?: string
+          status?: Database["public"]["Enums"]["game_status"] | null
           updated_at?: string
         }
         Update: {
@@ -40,7 +110,7 @@ export type Database = {
           owner_id?: string
           player_ids?: string[] | null
           room_code?: string
-          status?: string
+          status?: Database["public"]["Enums"]["game_status"] | null
           updated_at?: string
         }
         Relationships: []
@@ -54,6 +124,7 @@ export type Database = {
           id: string
           player_states: Json
           room_id: string | null
+          status: string | null
           updated_at: string
         }
         Insert: {
@@ -64,6 +135,7 @@ export type Database = {
           id?: string
           player_states: Json
           room_id?: string | null
+          status?: string | null
           updated_at?: string
         }
         Update: {
@@ -74,6 +146,7 @@ export type Database = {
           id?: string
           player_states?: Json
           room_id?: string | null
+          status?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -126,6 +199,7 @@ export type Database = {
           id: string
           player_states: Json
           room_id: string | null
+          status: string | null
           updated_at: string
         }
       }
@@ -143,7 +217,7 @@ export type Database = {
           owner_id: string
           player_ids: string[] | null
           room_code: string
-          status: string
+          status: Database["public"]["Enums"]["game_status"] | null
           updated_at: string
         }
       }
@@ -162,9 +236,18 @@ export type Database = {
           owner_id: string
           player_ids: string[] | null
           room_code: string
-          status: string
+          status: Database["public"]["Enums"]["game_status"] | null
           updated_at: string
         }
+      }
+      log_game_action: {
+        Args: {
+          p_room_id: string
+          p_player_id: string
+          p_action_type: string
+          p_action_data?: Json
+        }
+        Returns: undefined
       }
       start_game: {
         Args: { p_room_id: string }
@@ -176,6 +259,7 @@ export type Database = {
           id: string
           player_states: Json
           room_id: string | null
+          status: string | null
           updated_at: string
         }
       }
@@ -194,6 +278,7 @@ export type Database = {
           id: string
           player_states: Json
           room_id: string | null
+          status: string | null
           updated_at: string
         }
       }
@@ -214,6 +299,7 @@ export type Database = {
         | "queen"
         | "king"
       card_suit: "hearts" | "diamonds" | "clubs" | "spades"
+      game_status: "waiting" | "in_progress" | "finished"
     }
     CompositeTypes: {
       card: {
@@ -348,6 +434,7 @@ export const Constants = {
         "king",
       ],
       card_suit: ["hearts", "diamonds", "clubs", "spades"],
+      game_status: ["waiting", "in_progress", "finished"],
     },
   },
 } as const

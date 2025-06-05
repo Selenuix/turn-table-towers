@@ -1,3 +1,4 @@
+
 import {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useToast} from '@/components/ui/use-toast';
@@ -5,6 +6,7 @@ import {useOptimizedGameRooms} from '@/hooks/useOptimizedGameRooms';
 import {useAuthContext} from '@/hooks/useAuthContext';
 import {RoomHeader} from '@/features/game-room/components/RoomHeader';
 import {RoomContent} from '@/features/game-room/components/RoomContent';
+import {ChatPanel} from '@/features/chat/components/ChatPanel';
 import {GameRoom, Player} from '@/features/game-room/types';
 import {supabase} from '@/integrations/supabase/client';
 import {RoomStatusEnum} from "@/consts";
@@ -38,6 +40,22 @@ export default function Room() {
       subscriptionRef.current = null;
       isSubscribedRef.current = false;
       channelNameRef.current = '';
+    }
+  };
+
+  // Log game action helper
+  const logGameAction = async (actionType: string, actionData?: any) => {
+    if (!room || !user) return;
+
+    try {
+      await supabase.rpc('log_game_action', {
+        p_room_id: room.id,
+        p_player_id: user.id,
+        p_action_type: actionType,
+        p_action_data: actionData
+      });
+    } catch (error) {
+      console.error('Error logging game action:', error);
     }
   };
 
@@ -182,6 +200,7 @@ export default function Room() {
 
     try {
       await startGame(room.id);
+      await logGameAction('game_started');
       toast({
         title: 'Success', description: 'Game started!',
       });
@@ -197,6 +216,7 @@ export default function Room() {
     if (!room) return;
 
     try {
+      await logGameAction('player_left');
       await leaveRoom(room.id);
       navigate('/');
     } catch (error) {
@@ -238,15 +258,27 @@ export default function Room() {
           onCopyRoomCode={handleCopyInviteLink}
         />
 
-        <RoomContent
-          room={room}
-          players={players}
-          currentUserId={user.id}
-          isGameInProgress={isGameInProgress}
-          onStartGame={handleStartGame}
-          onLeaveRoom={handleLeaveRoom}
-          onCopyInviteLink={handleCopyInviteLink}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          <div className="lg:col-span-2">
+            <RoomContent
+              room={room}
+              players={players}
+              currentUserId={user.id}
+              isGameInProgress={isGameInProgress}
+              onStartGame={handleStartGame}
+              onLeaveRoom={handleLeaveRoom}
+              onCopyInviteLink={handleCopyInviteLink}
+            />
+          </div>
+          
+          <div className="lg:col-span-1">
+            <ChatPanel
+              roomId={room.id}
+              currentUserId={user.id}
+              players={players}
+            />
+          </div>
+        </div>
       </div>
     </div>);
 }

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GameState, Card, PlayerState, RoomStatus } from '@/features/game-room/types';
@@ -8,7 +9,7 @@ export const useGameState = (roomId: string, userId: string) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const isMountedRef = useRef<boolean>(true);
-  const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
+  const subscriptionRef = useRef<any>(null);
 
   const fetchGameState = useCallback(async () => {
     if (!roomId) return;
@@ -78,6 +79,7 @@ export const useGameState = (roomId: string, userId: string) => {
     }
   }, [roomId]);
 
+  // Optimized subscription with better cleanup
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -89,9 +91,16 @@ export const useGameState = (roomId: string, userId: string) => {
     // Fetch initial data
     fetchGameState();
 
+    // Clean up previous subscription
+    if (subscriptionRef.current) {
+      supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
+    }
+
     // Subscribe to real-time updates
+    const channelName = `game_state_${roomId}_${userId}_${Date.now()}`;
     const subscription = supabase
-      .channel('game_state_changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -118,7 +127,7 @@ export const useGameState = (roomId: string, userId: string) => {
 
       // Clean up subscription on unmount
       if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
+        supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
       }
     };
@@ -149,6 +158,15 @@ export const useGameState = (roomId: string, userId: string) => {
     }
   };
 
+  const shuffleDeck = (deck: Card[]): Card[] => {
+    const shuffled = [...deck];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
   const performGameAction = async (action: string, data?: any) => {
     if (!gameState || gameState.status === 'finished') {
       throw new Error('Game is not active');
@@ -159,12 +177,18 @@ export const useGameState = (roomId: string, userId: string) => {
 
       switch (action) {
         case 'change_own_shield': {
-          // Draw a card from the deck
+          // Check if deck is empty and reshuffle if needed
           if (updatedGameState.deck.length === 0) {
-            throw new Error('Deck is empty');
+            if (updatedGameState.discard_pile.length === 0) {
+              throw new Error('No cards available');
+            }
+            // Reshuffle discard pile into deck
+            updatedGameState.deck = shuffleDeck(updatedGameState.discard_pile);
+            updatedGameState.discard_pile = [];
           }
 
           const newCard = updatedGameState.deck.pop();
+          if (!newCard) throw new Error('No card available');
 
           // If player already has a shield, move it to discard pile
           if (updatedGameState.player_states[userId].shield) {
@@ -190,12 +214,18 @@ export const useGameState = (roomId: string, userId: string) => {
             throw new Error('Invalid target player');
           }
 
-          // Draw a card from the deck
+          // Check if deck is empty and reshuffle if needed
           if (updatedGameState.deck.length === 0) {
-            throw new Error('Deck is empty');
+            if (updatedGameState.discard_pile.length === 0) {
+              throw new Error('No cards available');
+            }
+            updatedGameState.deck = shuffleDeck(updatedGameState.discard_pile);
+            updatedGameState.discard_pile = [];
           }
 
           const newCard = updatedGameState.deck.pop();
+          if (!newCard) throw new Error('No card available');
+          
           const targetPlayerState = updatedGameState.player_states[targetId];
 
           // If target player already has a shield, move it to discard pile
@@ -216,12 +246,17 @@ export const useGameState = (roomId: string, userId: string) => {
         }
 
         case 'store_card': {
-          // Draw a card from the deck
+          // Check if deck is empty and reshuffle if needed
           if (updatedGameState.deck.length === 0) {
-            throw new Error('Deck is empty');
+            if (updatedGameState.discard_pile.length === 0) {
+              throw new Error('No cards available');
+            }
+            updatedGameState.deck = shuffleDeck(updatedGameState.discard_pile);
+            updatedGameState.discard_pile = [];
           }
 
           const newCard = updatedGameState.deck.pop();
+          if (!newCard) throw new Error('No card available');
 
           // Add the card to stored cards
           updatedGameState.player_states[userId].stored_cards.push(newCard);
@@ -244,8 +279,19 @@ export const useGameState = (roomId: string, userId: string) => {
             throw new Error('Invalid player state');
           }
 
+          // Check if deck is empty and reshuffle if needed
+          if (updatedGameState.deck.length === 0) {
+            if (updatedGameState.discard_pile.length === 0) {
+              throw new Error('No cards available');
+            }
+            updatedGameState.deck = shuffleDeck(updatedGameState.discard_pile);
+            updatedGameState.discard_pile = [];
+          }
+
           // Draw a card for the attack
           const drawnCard = updatedGameState.deck[0];
+          if (!drawnCard) throw new Error('No card available for attack');
+          
           const attackValue = getCardValue(drawnCard);
 
           // Calculate total attack value including stored cards
@@ -263,7 +309,7 @@ export const useGameState = (roomId: string, userId: string) => {
           }
 
           // Calculate shield value
-          const shieldValue = getCardValue(targetPlayerState.shield);
+          const shieldValue = targetPlayerState.shield ? getCardValue(targetPlayerState.shield) : 0;
 
           // Calculate damage (attack - shield)
           const damage = Math.max(0, totalAttackValue - shieldValue);
@@ -316,6 +362,19 @@ export const useGameState = (roomId: string, userId: string) => {
               .eq('id', roomId);
 
             if (roomError) throw roomError;
+
+            // Log game finished
+            const winnerId = Object.keys(updatedGameState.player_states).find(
+              id => !updatedGameState.player_states[id].eliminated
+            );
+            if (winnerId) {
+              await supabase.rpc('log_game_action', {
+                p_room_id: roomId,
+                p_player_id: winnerId,
+                p_action_type: 'game_finished',
+                p_action_data: { winnerId }
+              });
+            }
           } else {
             // Find next active player
             const currentPlayerIndex = Object.keys(updatedGameState.player_states).findIndex(id => id === userId);
@@ -328,6 +387,15 @@ export const useGameState = (roomId: string, userId: string) => {
             
             updatedGameState.current_player_id = Object.keys(updatedGameState.player_states)[nextPlayerIndex];
           }
+
+          // Store attack result for logging
+          const attackResult = {
+            success: true,
+            damage,
+            attackValue: totalAttackValue,
+            shieldValue,
+            usedStoredCards
+          };
 
           break;
         }
@@ -351,28 +419,26 @@ export const useGameState = (roomId: string, userId: string) => {
 
       if (updateError) throw updateError;
 
-      // Update game room status if game is finished
-      if (updatedGameState.status === 'finished') {
-        const { error: roomError } = await supabase
-          .from('game_rooms')
-          .update({ 
-            status: 'finished',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', roomId);
-
-        if (roomError) throw roomError;
-      }
-
       // Parse the player states back to an object before setting state
       const parsedGameState = {
         ...updatedGameState,
         player_states: JSON.parse(JSON.stringify(updatedGameState.player_states))
       };
       setGameState(parsedGameState);
+
+      // Return success with any additional data
+      return { 
+        success: true, 
+        error: null, 
+        data: action === 'attack' ? {
+          damage: data?.damage,
+          attackValue: data?.attackValue,
+          shieldValue: data?.shieldValue
+        } : null 
+      };
     } catch (error) {
       console.error('Error performing game action:', error);
-      throw error;
+      return { success: false, error, data: null };
     }
   };
 

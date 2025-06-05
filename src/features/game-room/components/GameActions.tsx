@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -5,12 +6,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Player, PlayerState, Card as GameCard } from '../types';
 import { CardComponent } from './CardComponent';
 import { getCardValue } from '../utils/gameLogic';
+import { supabase } from '@/integrations/supabase/client';
 
 interface GameActionsProps {
   isPlayerTurn: boolean;
   currentPlayerState: PlayerState;
   players: Player[];
   playerStates: Record<string, PlayerState>;
+  roomId: string;
+  currentUserId: string;
   onAction: (action: string, data?: any) => Promise<{ success: boolean; error: Error | null; data?: any }>;
 }
 
@@ -19,6 +23,8 @@ export const GameActions = ({
   currentPlayerState,
   players,
   playerStates,
+  roomId,
+  currentUserId,
   onAction
 }: GameActionsProps) => {
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
@@ -26,6 +32,20 @@ export const GameActions = ({
   const [selectedStoredCards, setSelectedStoredCards] = useState<number[]>([]);
   const [cardsRevealed, setCardsRevealed] = useState(false);
   const [confirmingAttack, setConfirmingAttack] = useState(false);
+
+  // Helper function to log game actions
+  const logGameAction = async (actionType: string, actionData?: any) => {
+    try {
+      await supabase.rpc('log_game_action', {
+        p_room_id: roomId,
+        p_player_id: currentUserId,
+        p_action_type: actionType,
+        p_action_data: actionData
+      });
+    } catch (error) {
+      console.error('Error logging game action:', error);
+    }
+  };
 
   if (!isPlayerTurn) {
     return (
@@ -37,11 +57,20 @@ export const GameActions = ({
     );
   }
 
-  const handleAction = (actionType: string) => {
+  const handleAction = async (actionType: string) => {
     setSelectedAction(actionType);
 
     if (actionType === 'store_card') {
-      onAction('store_card');
+      const result = await onAction('store_card');
+      if (result.success) {
+        await logGameAction('card_stored');
+      }
+      setSelectedAction(null);
+    } else if (actionType === 'change_own_shield') {
+      const result = await onAction('change_own_shield');
+      if (result.success) {
+        await logGameAction('shield_changed_own');
+      }
       setSelectedAction(null);
     }
   };
@@ -56,14 +85,32 @@ export const GameActions = ({
         setConfirmingAttack(true);
       } else {
         // If no stored cards or they've already been revealed, proceed with attack
-        onAction('attack', {
+        const result = await onAction('attack', {
           targetId,
           storedCardIndices: selectedStoredCards
         });
+        
+        if (result.success && result.data) {
+          await logGameAction('player_attacked', {
+            targetId,
+            damage: result.data.damage || 0,
+            attackValue: result.data.attackValue || 0,
+            shieldValue: result.data.shieldValue || 0
+          });
+          
+          // Check if target was eliminated
+          if (playerStates[targetId]?.hp === 0) {
+            await logGameAction('player_eliminated', { targetId });
+          }
+        }
+        
         resetSelection();
       }
     } else if (selectedAction === 'change_other_shield') {
-      onAction('change_other_shield', { targetId });
+      const result = await onAction('change_other_shield', { targetId });
+      if (result.success) {
+        await logGameAction('shield_changed_other', { targetId });
+      }
       resetSelection();
     }
   };
@@ -72,12 +119,27 @@ export const GameActions = ({
     setCardsRevealed(true);
   };
 
-  const handleConfirmAttack = () => {
+  const handleConfirmAttack = async () => {
     if (selectedTarget && cardsRevealed) {
-      onAction('attack', {
+      const result = await onAction('attack', {
         targetId: selectedTarget,
         storedCardIndices: selectedStoredCards
       });
+      
+      if (result.success && result.data) {
+        await logGameAction('player_attacked', {
+          targetId: selectedTarget,
+          damage: result.data.damage || 0,
+          attackValue: result.data.attackValue || 0,
+          shieldValue: result.data.shieldValue || 0
+        });
+        
+        // Check if target was eliminated
+        if (playerStates[selectedTarget]?.hp === 0) {
+          await logGameAction('player_eliminated', { targetId: selectedTarget });
+        }
+      }
+      
       resetSelection();
     }
   };
@@ -105,7 +167,7 @@ export const GameActions = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           <Button
-            onClick={() => onAction('change_own_shield')}
+            onClick={() => handleAction('change_own_shield')}
             variant="default"
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium w-full"
           >
@@ -187,7 +249,7 @@ export const GameActions = ({
               Select target player:
             </h4>
             <div className="grid grid-cols-1 gap-2">
-              {players.filter(p => playerStates[p.id]?.setup_complete).map(player => (
+              {players.filter(p => p.id !== currentUserId && playerStates[p.id]?.setup_complete && !playerStates[p.id]?.eliminated).map(player => (
                 <Button
                   key={player.id}
                   onClick={() => handleTargetSelect(player.id)}
