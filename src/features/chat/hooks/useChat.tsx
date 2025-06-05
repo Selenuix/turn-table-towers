@@ -24,7 +24,8 @@ export const useChat = (roomId: string) => {
 
       if (error) throw error;
       if (isMountedRef.current) {
-        setMessages(data || []);
+        // Type assertion to ensure compatibility
+        setMessages((data as ChatMessage[]) || []);
       }
     } catch (error) {
       console.error('Error fetching chat messages:', error);
@@ -43,7 +44,7 @@ export const useChat = (roomId: string) => {
 
       if (error) throw error;
       if (isMountedRef.current) {
-        setGameLogs(data || []);
+        setGameLogs((data as GameLog[]) || []);
       }
     } catch (error) {
       console.error('Error fetching game logs:', error);
@@ -111,7 +112,7 @@ export const useChat = (roomId: string) => {
           room_id: roomId,
           player_id: user.id,
           message: message.trim(),
-          message_type: 'user'
+          message_type: 'user' as const
         });
 
       if (error) throw error;
