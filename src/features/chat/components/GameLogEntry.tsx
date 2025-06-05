@@ -48,9 +48,9 @@ export const GameLogEntry = ({ log, players }: GameLogEntryProps) => {
   };
 
   return (
-    <div className="flex items-center justify-between py-1 px-2 text-xs text-slate-400 hover:bg-slate-700/30 rounded">
+    <div className="flex items-center justify-between py-1 px-2 text-xs text-slate-500 italic bg-slate-800/30 rounded">
       <span>{getLogMessage()}</span>
-      <span className="text-slate-500">{timeAgo}</span>
+      <span className="text-slate-600 text-[10px]">{timeAgo}</span>
     </div>
   );
 };

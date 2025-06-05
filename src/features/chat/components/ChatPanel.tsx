@@ -3,8 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, MessageSquare, ScrollText } from 'lucide-react';
+import { Send, MessageSquare } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { ChatMessage } from './ChatMessage';
 import { GameLogEntry } from './GameLogEntry';
@@ -19,10 +18,8 @@ interface ChatPanelProps {
 
 export const ChatPanel = ({ roomId, currentUserId, players }: ChatPanelProps) => {
   const [message, setMessage] = useState('');
-  const [activeTab, setActiveTab] = useState('chat');
   const { messages, gameLogs, loading, sendMessage } = useChat(roomId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Create players lookup for easy access
   const playersLookup = players.reduce((acc, player) => {
@@ -30,17 +27,19 @@ export const ChatPanel = ({ roomId, currentUserId, players }: ChatPanelProps) =>
     return acc;
   }, {} as Record<string, Player>);
 
-  const scrollToBottom = (ref: React.RefObject<HTMLDivElement>) => {
-    ref.current?.scrollIntoView({ behavior: 'smooth' });
+  // Combine messages and logs, sorted by timestamp
+  const combinedEntries = [
+    ...messages.map(msg => ({ ...msg, type: 'message' as const })),
+    ...gameLogs.map(log => ({ ...log, type: 'log' as const }))
+  ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    if (activeTab === 'chat') {
-      scrollToBottom(messagesEndRef);
-    } else {
-      scrollToBottom(logsEndRef);
-    }
-  }, [messages, gameLogs, activeTab]);
+    scrollToBottom();
+  }, [combinedEntries]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,92 +69,63 @@ export const ChatPanel = ({ roomId, currentUserId, players }: ChatPanelProps) =>
 
   return (
     <Card className="bg-slate-800/50 border-slate-700 h-96 flex flex-col">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <TabsList className="grid w-full grid-cols-2 bg-slate-700/50">
-          <TabsTrigger value="chat" className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            Chat
-            {messages.length > 0 && (
-              <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center">
-                {messages.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="logs" className="flex items-center gap-2">
-            <ScrollText className="w-4 h-4" />
-            Game Log
-            {gameLogs.length > 0 && (
-              <span className="bg-green-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center">
-                {gameLogs.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      <div className="p-3 border-b border-slate-700 flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-slate-400" />
+        <span className="text-white font-medium">Chat & Game Log</span>
+        <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center">
+          {combinedEntries.length}
+        </span>
+      </div>
 
-        <TabsContent value="chat" className="flex-1 flex flex-col mt-0">
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {messages.length === 0 ? (
-              <div className="text-center text-slate-400 py-8">
-                No messages yet. Start the conversation!
-              </div>
-            ) : (
-              messages.map((msg) => (
-                <ChatMessage
-                  key={msg.id}
-                  message={msg}
-                  user={playersLookup[msg.player_id]}
-                  isCurrentUser={msg.player_id === currentUserId}
-                />
-              ))
-            )}
-            <div ref={messagesEndRef} />
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {combinedEntries.length === 0 ? (
+          <div className="text-center text-slate-400 py-8">
+            No messages yet. Start the conversation!
           </div>
-
-          <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-700">
-            <div className="flex gap-2">
-              <div className="flex-1 flex">
-                <Input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-                  maxLength={500}
-                />
-                <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-              </div>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={!message.trim()}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-          </form>
-        </TabsContent>
-
-        <TabsContent value="logs" className="flex-1 flex flex-col mt-0">
-          <div className="flex-1 overflow-y-auto p-3">
-            {gameLogs.length === 0 ? (
-              <div className="text-center text-slate-400 py-8">
-                No game events yet.
-              </div>
+        ) : (
+          combinedEntries.map((entry) => (
+            entry.type === 'message' ? (
+              <ChatMessage
+                key={`msg-${entry.id}`}
+                message={entry}
+                user={playersLookup[entry.player_id]}
+                isCurrentUser={entry.player_id === currentUserId}
+              />
             ) : (
-              <div className="space-y-1">
-                {gameLogs.map((log) => (
-                  <GameLogEntry
-                    key={log.id}
-                    log={log}
-                    players={playersLookup}
-                  />
-                ))}
+              <div key={`log-${entry.id}`} className="opacity-70">
+                <GameLogEntry
+                  log={entry}
+                  players={playersLookup}
+                />
               </div>
-            )}
-            <div ref={logsEndRef} />
+            )
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-700">
+        <div className="flex gap-2">
+          <div className="flex-1 flex">
+            <Input
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400"
+              maxLength={500}
+            />
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           </div>
-        </TabsContent>
-      </Tabs>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!message.trim()}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </div>
+      </form>
     </Card>
   );
 };

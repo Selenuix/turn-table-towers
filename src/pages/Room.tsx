@@ -1,4 +1,3 @@
-
 import {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useToast} from '@/components/ui/use-toast';
@@ -159,12 +158,22 @@ export default function Room() {
           }
 
           const updatedRoom = payload.new as GameRoom;
+          const previousRoom = room;
+          
           if (isMountedRef.current) {
             setRoom(updatedRoom);
 
             const playersData = await getPlayers(updatedRoom.player_ids);
             if (isMountedRef.current) {
               setPlayers(playersData);
+
+              // Log player joins
+              if (previousRoom && updatedRoom.player_ids.length > previousRoom.player_ids.length) {
+                const newPlayerIds = updatedRoom.player_ids.filter(id => !previousRoom.player_ids.includes(id));
+                for (const newPlayerId of newPlayerIds) {
+                  await logGameAction('player_joined', { playerId: newPlayerId });
+                }
+              }
 
               // If the current user is no longer in the room, navigate back to lobby
               if (!updatedRoom.player_ids.includes(user?.id || '')) {
@@ -193,7 +202,7 @@ export default function Room() {
       clearTimeout(timeoutId);
       cleanupSubscription();
     };
-  }, [id, user?.id, authLoading, getRoom, getPlayers, toast, navigate]);
+  }, [id, user?.id, authLoading, getRoom, getPlayers, toast, navigate, room]);
 
   const handleStartGame = async () => {
     if (!room) return;

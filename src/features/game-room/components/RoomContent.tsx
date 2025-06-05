@@ -30,9 +30,9 @@ export const RoomContent = ({
         <>
           <div className="lg:col-span-2 space-y-6">
             <GameView 
-              roomId={room.id} 
-              userId={currentUserId} 
+              room={room}
               players={players}
+              currentUserId={currentUserId}
             />
           </div>
           
