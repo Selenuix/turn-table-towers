@@ -255,7 +255,7 @@ describe('Game Logic', () => {
     });
 
     it('should reject deck with duplicates', () => {
-      const duplicateDeck = [
+      const duplicateDeck: Card[] = [
         { suit: 'hearts', rank: 'ace' },
         { suit: 'hearts', rank: 'ace' }, // Duplicate
         ...createDeck().slice(2)
