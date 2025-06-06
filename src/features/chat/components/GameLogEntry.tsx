@@ -29,16 +29,25 @@ export const GameLogEntry = ({ log, players }: GameLogEntryProps) => {
       case 'shield_changed_own':
         return `${playerName} changed their shield`;
       case 'shield_changed_other':
-        const targetName = getPlayerName(log.action_data?.targetId);
+        const targetName = log.action_data?.targetName || getPlayerName(log.action_data?.targetId);
         return `${playerName} changed ${targetName}'s shield`;
       case 'card_stored':
         return `${playerName} stored a card`;
       case 'player_attacked':
-        const attackedName = getPlayerName(log.action_data?.targetId);
+        const attackedName = log.action_data?.targetName || getPlayerName(log.action_data?.targetId);
+        const attackValue = log.action_data?.attackValue || 0;
+        const shieldValue = log.action_data?.shieldValue || 0;
         const damage = log.action_data?.damage || 0;
-        return `${playerName} attacked ${attackedName} for ${damage} damage`;
+        const storedCardsUsed = log.action_data?.storedCardsUsed || 0;
+        
+        if (storedCardsUsed > 0) {
+          return `${playerName} attacked ${attackedName} with ${attackValue} (${storedCardsUsed} stored card${storedCardsUsed > 1 ? 's' : ''}) vs ${shieldValue} shield - dealt ${damage} damage`;
+        } else {
+          return `${playerName} attacked ${attackedName} with ${attackValue} vs ${shieldValue} shield - dealt ${damage} damage`;
+        }
       case 'player_eliminated':
-        return `${playerName} was eliminated`;
+        const eliminatedName = log.action_data?.targetName || getPlayerName(log.action_data?.targetId);
+        return `${eliminatedName} was eliminated`;
       case 'game_finished':
         const winner = getPlayerName(log.action_data?.winnerId);
         return `Game finished! ${winner} wins!`;

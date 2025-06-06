@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -91,16 +90,29 @@ export const GameActions = ({
         });
         
         if (result.success && result.data) {
+          // Enhanced attack logging with detailed damage information
+          const targetPlayer = players.find(p => p.id === targetId);
+          const targetName = targetPlayer?.username || targetPlayer?.email?.split('@')[0] || 'Unknown Player';
+          const attackValue = result.data.attackValue || 0;
+          const shieldValue = result.data.shieldValue || 0;
+          const damage = result.data.damage || 0;
+          
           await logGameAction('player_attacked', {
             targetId,
-            damage: result.data.damage || 0,
-            attackValue: result.data.attackValue || 0,
-            shieldValue: result.data.shieldValue || 0
+            targetName,
+            attackValue,
+            shieldValue,
+            damage,
+            storedCardsUsed: selectedStoredCards.length
           });
           
-          // Check if target was eliminated
-          if (playerStates[targetId]?.hp === 0) {
-            await logGameAction('player_eliminated', { targetId });
+          // Check if target was eliminated and log it
+          const targetPlayerState = playerStates[targetId];
+          if (targetPlayerState && targetPlayerState.hp <= damage) {
+            await logGameAction('player_eliminated', { 
+              targetId,
+              targetName
+            });
           }
         }
         
@@ -109,7 +121,13 @@ export const GameActions = ({
     } else if (selectedAction === 'change_other_shield') {
       const result = await onAction('change_other_shield', { targetId });
       if (result.success) {
-        await logGameAction('shield_changed_other', { targetId });
+        const targetPlayer = players.find(p => p.id === targetId);
+        const targetName = targetPlayer?.username || targetPlayer?.email?.split('@')[0] || 'Unknown Player';
+        
+        await logGameAction('shield_changed_other', { 
+          targetId,
+          targetName
+        });
       }
       resetSelection();
     }
@@ -127,16 +145,29 @@ export const GameActions = ({
       });
       
       if (result.success && result.data) {
+        // Enhanced attack logging with detailed damage information
+        const targetPlayer = players.find(p => p.id === selectedTarget);
+        const targetName = targetPlayer?.username || targetPlayer?.email?.split('@')[0] || 'Unknown Player';
+        const attackValue = result.data.attackValue || 0;
+        const shieldValue = result.data.shieldValue || 0;
+        const damage = result.data.damage || 0;
+        
         await logGameAction('player_attacked', {
           targetId: selectedTarget,
-          damage: result.data.damage || 0,
-          attackValue: result.data.attackValue || 0,
-          shieldValue: result.data.shieldValue || 0
+          targetName,
+          attackValue,
+          shieldValue,
+          damage,
+          storedCardsUsed: selectedStoredCards.length
         });
         
-        // Check if target was eliminated
-        if (playerStates[selectedTarget]?.hp === 0) {
-          await logGameAction('player_eliminated', { targetId: selectedTarget });
+        // Check if target was eliminated and log it
+        const targetPlayerState = playerStates[selectedTarget];
+        if (targetPlayerState && targetPlayerState.hp <= damage) {
+          await logGameAction('player_eliminated', { 
+            targetId: selectedTarget,
+            targetName
+          });
         }
       }
       
