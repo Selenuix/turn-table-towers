@@ -66,21 +66,22 @@ export const CardSelectionPhase = ({ playerHand, onSetupComplete }: CardSelectio
         {playerHand.map((card, index) => {
           const role = getCardRole(index);
           return (
-            <div
-              key={index}
-              className={`cursor-pointer transition-all duration-200 ${
-                role === 'shield' 
-                  ? 'ring-2 ring-blue-400 scale-105' 
-                  : role === 'hp'
-                  ? 'ring-2 ring-green-400 scale-105'
-                  : 'hover:scale-105'
-              }`}
-              onClick={() => handleCardClick(index)}
-            >
-              <CardComponent card={card} />
-              <div className="text-center text-xs mt-1">
-                {role === 'shield' && <span className="text-blue-400">Shield</span>}
-                {role === 'hp' && <span className="text-green-400">HP</span>}
+            <div key={index} className="flex flex-col items-center">
+              <div
+                className={`cursor-pointer transition-all duration-200 ${
+                  role === 'shield' 
+                    ? 'ring-2 ring-blue-400 scale-105' 
+                    : role === 'hp'
+                    ? 'ring-2 ring-green-400 scale-105'
+                    : 'hover:scale-105'
+                }`}
+                onClick={() => handleCardClick(index)}
+              >
+                <CardComponent card={card} />
+              </div>
+              <div className="text-center text-xs mt-2">
+                {role === 'shield' && <span className="text-blue-400 font-medium">Shield</span>}
+                {role === 'hp' && <span className="text-green-400 font-medium">HP</span>}
                 {role === 'unassigned' && <span className="text-slate-400">Click to assign</span>}
               </div>
             </div>

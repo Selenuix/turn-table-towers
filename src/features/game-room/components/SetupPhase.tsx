@@ -82,9 +82,9 @@ export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) =>
 
         <div>
           <h3 className="text-white font-medium mb-3">Your Hand</h3>
-          <div className="flex justify-center space-x-2">
+          <div className="flex justify-center space-x-4">
             {playerState.hand.map((card, index) => (
-              <div key={index} className="text-center">
+              <div key={index} className="flex flex-col items-center">
                 <CardComponent
                   card={card}
                   faceDown={!cardsRevealed}
@@ -101,17 +101,19 @@ export const SetupPhase = ({ playerState, onSetupComplete }: SetupPhaseProps) =>
                     }
                   }}
                 />
-                {cardsRevealed && (
-                  <div className="text-xs text-slate-400 mt-1">
-                    Value: {getCardValue(card)}
-                  </div>
-                )}
-                {selectedShield === index && (
-                  <div className="text-xs text-blue-400 font-medium">Shield</div>
-                )}
-                {selectedHP.includes(index) && (
-                  <div className="text-xs text-red-400 font-medium">HP</div>
-                )}
+                <div className="text-center mt-2 space-y-1">
+                  {cardsRevealed && (
+                    <div className="text-xs text-slate-400">
+                      Value: {getCardValue(card)}
+                    </div>
+                  )}
+                  {selectedShield === index && (
+                    <div className="text-xs text-blue-400 font-medium">Shield</div>
+                  )}
+                  {selectedHP.includes(index) && (
+                    <div className="text-xs text-red-400 font-medium">HP</div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

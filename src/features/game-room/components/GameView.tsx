@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { GameRoom, Player } from '../types';
 import { GameActions } from './GameActions';
 import { CardSelectionPhase } from './CardSelectionPhase';
+import { PlayerBoard } from './PlayerBoard';
 import { useGameState } from '@/hooks/useGameState';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -55,6 +56,13 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
 
   const playerHand = getPlayerHand();
 
+  // Check if all players have completed setup
+  const allPlayersSetup = gameState && gameState.player_states && 
+    Object.values(gameState.player_states).every((state: any) => state.setup_complete);
+
+  // Get current player for display
+  const currentPlayer = players.find(p => p.id === gameState?.current_player_id);
+
   if (!gameState) {
     return <div className="text-white">Loading game state...</div>;
   }
@@ -73,69 +81,62 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Players Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {Object.entries(gameState.player_states || {}).map(([playerId, playerState]: [string, any]) => (
-          <div key={playerId} className={`p-4 rounded-lg ${playerState?.eliminated ? 'bg-red-700' : 'bg-slate-700'}`}>
-            <h3 className="text-lg font-semibold text-white">{getPlayerName(playerId)}</h3>
-            <p className="text-slate-300">Health: {playerState?.hp || 0}</p>
-            <p className="text-slate-300">Shield: {playerState?.shield ? `${playerState.shield.rank} of ${playerState.shield.suit}` : 'None'}</p>
-            <p className="text-slate-300">Stored Cards: {playerState?.stored_cards?.length || 0}</p>
-            {playerState?.eliminated && <p className="text-red-400">Eliminated</p>}
-          </div>
-        ))}
-      </div>
-
-      {/* Current Player's Info */}
-      {gameState.player_states?.[currentUserId] && (
-        <div className="bg-slate-800 p-4 rounded-lg">
-          <h4 className="text-xl font-semibold text-white">Your Status</h4>
-          <p className="text-slate-300">Health: {gameState.player_states[currentUserId].hp || 0}</p>
-          <p className="text-slate-300">
-            Shield: {gameState.player_states[currentUserId].shield 
-              ? `${gameState.player_states[currentUserId].shield.rank} of ${gameState.player_states[currentUserId].shield.suit}` 
-              : 'None'}
+      {/* Game Status */}
+      {!allPlayersSetup && (
+        <div className="text-center p-4 bg-amber-900/30 border border-amber-700/50 rounded-lg">
+          <p className="text-amber-300 font-medium">
+            Waiting for all players to complete their setup...
           </p>
-          <p className="text-slate-300">Stored Cards: {gameState.player_states[currentUserId].stored_cards?.length || 0}</p>
-          {gameState.player_states[currentUserId].stored_cards?.length > 0 && (
-            <div className="mt-2">
-              <p className="text-slate-400 text-sm">Your stored cards:</p>
-              <div className="flex gap-1 mt-1">
-                {gameState.player_states[currentUserId].stored_cards.map((card: any, index: number) => (
-                  <span key={index} className="text-xs bg-slate-600 px-2 py-1 rounded">
-                    {card.rank} of {card.suit}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
+      {/* Players Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {Object.entries(gameState.player_states || {}).map(([playerId, playerState]: [string, any]) => {
+          const player = players.find(p => p.id === playerId);
+          if (!player) return null;
+
+          return (
+            <PlayerBoard
+              key={playerId}
+              player={player}
+              playerState={playerState}
+              isCurrentPlayer={gameState.current_player_id === playerId}
+              isCurrentUser={playerId === currentUserId}
+              allPlayersSetup={!!allPlayersSetup}
+              currentPlayer={currentPlayer}
+            />
+          );
+        })}
+      </div>
+
       {/* Game Actions */}
-      {gameState && gameState.status === 'in_progress' && gameState.player_states?.[currentUserId] && !gameState.player_states[currentUserId].eliminated && (
-        <GameActions
-          isPlayerTurn={isPlayerTurn()}
-          currentPlayerState={gameState.player_states[currentUserId]}
-          players={players}
-          playerStates={gameState.player_states}
-          roomId={room.id}
-          currentUserId={currentUserId}
-          onAction={async (action: string, data?: any) => {
-            try {
-              await performGameAction(action, data);
-              return { success: true, error: null as any };
-            } catch (error) {
-              return { success: false, error: error as Error };
-            }
-          }}
-        />
+      {gameState && gameState.status === 'in_progress' && allPlayersSetup && gameState.player_states?.[currentUserId] && !gameState.player_states[currentUserId].eliminated && (
+        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
+          <GameActions
+            isPlayerTurn={isPlayerTurn()}
+            currentPlayerState={gameState.player_states[currentUserId]}
+            players={players}
+            playerStates={gameState.player_states}
+            roomId={room.id}
+            currentUserId={currentUserId}
+            onAction={async (action: string, data?: any) => {
+              try {
+                await performGameAction(action, data);
+                return { success: true, error: null as any };
+              } catch (error) {
+                return { success: false, error: error as Error };
+              }
+            }}
+          />
+        </div>
       )}
 
       {/* Game Over Condition */}
       {gameState.status === 'finished' && (
-        <div className="text-center text-2xl text-green-500 font-bold">
-          Game Over! Winner will be announced soon.
+        <div className="text-center p-6 bg-green-900/30 border border-green-700/50 rounded-lg">
+          <h2 className="text-2xl font-bold text-green-300 mb-2">Game Over!</h2>
+          <p className="text-green-400">Winner will be announced soon.</p>
         </div>
       )}
     </div>
