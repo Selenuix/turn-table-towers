@@ -92,7 +92,7 @@ export const GameActions = ({
         if (result.success && result.data) {
           // Enhanced attack logging with detailed damage information
           const targetPlayer = players.find(p => p.id === targetId);
-          const targetName = targetPlayer?.username || targetPlayer?.email?.split('@')[0] || 'Unknown Player';
+          const targetName = targetPlayer?.username || 'Anonymous';
           const attackValue = result.data.attackValue || 0;
           const shieldValue = result.data.shieldValue || 0;
           const damage = result.data.damage || 0;
@@ -122,7 +122,7 @@ export const GameActions = ({
       const result = await onAction('change_other_shield', { targetId });
       if (result.success) {
         const targetPlayer = players.find(p => p.id === targetId);
-        const targetName = targetPlayer?.username || targetPlayer?.email?.split('@')[0] || 'Unknown Player';
+        const targetName = targetPlayer?.username || 'Anonymous';
         
         await logGameAction('shield_changed_other', { 
           targetId,
@@ -147,7 +147,7 @@ export const GameActions = ({
       if (result.success && result.data) {
         // Enhanced attack logging with detailed damage information
         const targetPlayer = players.find(p => p.id === selectedTarget);
-        const targetName = targetPlayer?.username || targetPlayer?.email?.split('@')[0] || 'Unknown Player';
+        const targetName = targetPlayer?.username || 'Anonymous';
         const attackValue = result.data.attackValue || 0;
         const shieldValue = result.data.shieldValue || 0;
         const damage = result.data.damage || 0;
@@ -287,7 +287,11 @@ export const GameActions = ({
                   variant="ghost"
                   className="text-white hover:bg-slate-700 justify-start w-full"
                 >
-                  {player.username || player.email?.split('@')[0]} (HP: {playerStates[player.id]?.hp || 0})
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium">
+                      {player.username || 'Anonymous'} (HP: {playerStates[player.id]?.hp || 0})
+                    </span>
+                  </div>
                 </Button>
               ))}
             </div>
@@ -305,9 +309,7 @@ export const GameActions = ({
             </h4>
 
             <div className="text-slate-300 text-sm">
-              Target: {players.find(p => p.id === selectedTarget)?.username ||
-                      players.find(p => p.id === selectedTarget)?.email?.split('@')[0] ||
-                      'Unknown Player'}
+              Target: {players.find(p => p.id === selectedTarget)?.username || 'Anonymous'}
             </div>
 
             {selectedStoredCards.length > 0 && (

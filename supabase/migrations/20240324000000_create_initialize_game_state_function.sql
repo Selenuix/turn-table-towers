@@ -1,3 +1,4 @@
+-- Create function to initialize game state
 CREATE OR REPLACE FUNCTION initialize_game_state(p_room_id UUID)
 RETURNS game_states
 LANGUAGE plpgsql
@@ -61,7 +62,8 @@ BEGIN
         'hp_cards', null,
         'stored_cards', '[]'::jsonb,
         'hp', 0,
-        'setup_complete', false
+        'setup_complete', false,
+        'eliminated', false
       )
     );
   END LOOP;
@@ -75,16 +77,26 @@ BEGIN
     current_player_id,
     deck,
     discard_pile,
-    player_states
+    player_states,
+    status
   ) VALUES (
     p_room_id,
     v_player_ids[1], -- First player starts
     v_deck,
     v_empty_card_array,
-    v_player_states
+    v_player_states,
+    'waiting'::game_status
   )
   RETURNING * INTO v_game_state;
 
+  -- Update room status to playing
+  UPDATE game_rooms
+  SET status = 'playing'::game_status
+  WHERE id = p_room_id;
+
   RETURN v_game_state;
 END;
-$$; 
+$$;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION initialize_game_state TO authenticated; 

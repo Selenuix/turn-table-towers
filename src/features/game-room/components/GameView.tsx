@@ -3,6 +3,7 @@ import { GameRoom, Player } from '../types';
 import { GameActions } from './GameActions';
 import { CardSelectionPhase } from './CardSelectionPhase';
 import { PlayerBoard } from './PlayerBoard';
+import { GameOver } from './GameOver';
 import { useGameState } from '@/hooks/useGameState';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -64,89 +65,59 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
 
   // Check if game is finished and get winner
   const gameFinished = gameState?.status === 'finished';
-  const winner = gameFinished ? players.find(p => 
-    gameState.player_states[p.id] && !gameState.player_states[p.id].eliminated
-  ) : null;
+  const winner = gameFinished ? players.find(p => !gameState.player_states[p.id].eliminated) : null;
 
-  if (!gameState) {
-    return <div className="text-white">Loading game state...</div>;
-  }
-
-  // Show Game Over screen if game is finished
   if (gameFinished && winner) {
     return (
       <GameOver
-        winner={winner}
         players={players}
-        playerStates={gameState.player_states}
         currentUserId={currentUserId}
+        roomId={room.id}
       />
     );
   }
 
-  // Show setup phase if player needs to configure their cards
-  if (needsSetup && playerHand.length > 0 && !isSetupComplete) {
-    return (
-      <div className="space-y-6">
+  return (
+    <div className="space-y-8">
+      {/* Setup Phase */}
+      {needsSetup && (
         <CardSelectionPhase
           playerHand={playerHand}
           onSetupComplete={handleSetupComplete}
         />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Game Status */}
-      {!allPlayersSetup && (
-        <div className="text-center p-4 bg-amber-900/30 border border-amber-700/50 rounded-lg">
-          <p className="text-amber-300 font-medium">
-            Waiting for all players to complete their setup...
-          </p>
-        </div>
       )}
 
-      {/* Players Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Object.entries(gameState.player_states || {}).map(([playerId, playerState]: [string, any]) => {
-          const player = players.find(p => p.id === playerId);
-          if (!player) return null;
+      {/* Game Phase */}
+      {!needsSetup && allPlayersSetup && (
+        <>
+          {/* Player Boards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {players.map(player => (
+              <PlayerBoard
+                key={player.id}
+                player={player}
+                playerState={gameState?.player_states[player.id]}
+                isCurrentPlayer={gameState?.current_player_id === player.id}
+                isCurrentUser={player.id === currentUserId}
+                allPlayersSetup={allPlayersSetup}
+                currentPlayer={currentPlayer}
+              />
+            ))}
+          </div>
 
-          return (
-            <PlayerBoard
-              key={playerId}
-              player={player}
-              playerState={playerState}
-              isCurrentPlayer={gameState.current_player_id === playerId}
-              isCurrentUser={playerId === currentUserId}
-              allPlayersSetup={!!allPlayersSetup}
-              currentPlayer={currentPlayer}
+          {/* Game Actions */}
+          {isPlayerTurn() && !gameFinished && (
+            <GameActions
+              isPlayerTurn={isPlayerTurn()}
+              currentPlayerState={gameState?.player_states[currentUserId]}
+              players={players}
+              playerStates={gameState?.player_states}
+              roomId={room.id}
+              currentUserId={currentUserId}
+              onAction={performGameAction}
             />
-          );
-        })}
-      </div>
-
-      {/* Game Actions */}
-      {gameState && gameState.status === 'in_progress' && allPlayersSetup && gameState.player_states?.[currentUserId] && !gameState.player_states[currentUserId].eliminated && (
-        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
-          <GameActions
-            isPlayerTurn={isPlayerTurn()}
-            currentPlayerState={gameState.player_states[currentUserId]}
-            players={players}
-            playerStates={gameState.player_states}
-            roomId={room.id}
-            currentUserId={currentUserId}
-            onAction={async (action: string, data?: any) => {
-              try {
-                const result = await performGameAction(action, data);
-                return { success: true, error: null as any, data: result.data };
-              } catch (error) {
-                return { success: false, error: error as Error, data: null };
-              }
-            }}
-          />
-        </div>
+          )}
+        </>
       )}
     </div>
   );

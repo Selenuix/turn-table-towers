@@ -1,10 +1,10 @@
-
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from './useAuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { GameRoom, Player, GameState } from '@/features/game-room/types';
-import {RoomStatusEnum} from "@/consts";
+import { GameRoom, Player } from '@/features/game-room/types';
+import { RoomStatusEnum } from "@/consts";
+import { useSubscription } from '@/hooks/useSubscription';
 
 export const useOptimizedGameRooms = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
@@ -13,7 +13,8 @@ export const useOptimizedGameRooms = () => {
   const { toast } = useToast();
   const isMountedRef = useRef<boolean>(true);
   const intervalRef = useRef<number | null>(null);
-  // Fetch interval in milliseconds (10 seconds)
+  const { setupSubscription, cleanupSubscription } = useSubscription();
+  const subscriptionChannelRef = useRef<string>('');
   const FETCH_INTERVAL = 10000;
 
   const fetchRooms = useCallback(async () => {
@@ -21,11 +22,23 @@ export const useOptimizedGameRooms = () => {
       const { data, error } = await supabase
         .from('game_rooms')
         .select('*')
+        .eq('status', RoomStatusEnum.WAITING)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       if (isMountedRef.current) {
-        setRooms(data || []);
+        const typedRooms: GameRoom[] = (data || []).map(room => ({
+          id: room.id,
+          name: room.name,
+          owner_id: room.owner_id,
+          player_ids: room.player_ids || [],
+          max_players: room.max_players || 4,
+          status: room.status,
+          room_code: room.room_code,
+          created_at: room.created_at,
+          updated_at: room.updated_at
+        }));
+        setRooms(typedRooms);
       }
     } catch (error) {
       console.error('Error fetching rooms:', error);
@@ -43,6 +56,61 @@ export const useOptimizedGameRooms = () => {
     }
   }, [toast]);
 
+  const setupFetchInterval = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    intervalRef.current = window.setInterval(() => {
+      if (isMountedRef.current) {
+        console.log('Fetching rooms on interval');
+        fetchRooms();
+      }
+    }, FETCH_INTERVAL);
+  }, [fetchRooms]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    fetchRooms();
+    setupFetchInterval();
+
+    // Only set up subscription if we don't already have one
+    if (!subscriptionChannelRef.current) {
+      const channelName = `game_rooms_${user.id}_${Date.now()}`;
+      subscriptionChannelRef.current = channelName;
+
+      setupSubscription(channelName, async (payload) => {
+        if (!isMountedRef.current) return;
+
+        // If it's a DELETE event, remove the room from the list
+        if (payload.eventType === 'DELETE') {
+          setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
+          return;
+        }
+
+        // For INSERT and UPDATE events, fetch the latest rooms
+        await fetchRooms();
+      });
+    }
+
+    return () => {
+      isMountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      cleanupSubscription();
+      subscriptionChannelRef.current = '';
+    };
+  }, [user?.id, fetchRooms, setupFetchInterval, setupSubscription, cleanupSubscription]);
+
   const getRoom = useCallback(async (roomId: string): Promise<GameRoom | null> => {
     try {
       const { data, error } = await supabase
@@ -52,7 +120,19 @@ export const useOptimizedGameRooms = () => {
         .single();
 
       if (error) throw error;
-      return data;
+      if (!data) return null;
+
+      return {
+        id: data.id,
+        name: data.name,
+        owner_id: data.owner_id,
+        player_ids: data.player_ids || [],
+        max_players: data.max_players || 4,
+        status: data.status,
+        room_code: data.room_code,
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      };
     } catch (error) {
       console.error('Error fetching room:', error);
       return null;
@@ -93,6 +173,7 @@ export const useOptimizedGameRooms = () => {
           player_ids: [user.id],
           max_players: maxPlayers,
           room_code: codeData,
+          status: RoomStatusEnum.WAITING
         })
         .select()
         .single();
@@ -117,30 +198,28 @@ export const useOptimizedGameRooms = () => {
     }
   }, [user, toast, fetchRooms]);
 
-  const joinRoom = useCallback(async (roomId: string) => {
+  const joinRoom = useCallback(async (roomCode: string) => {
     if (!user) return { error: new Error('Not authenticated') };
 
     try {
       const { data: roomData, error: fetchError } = await supabase
         .from('game_rooms')
         .select('*')
-        .eq('id', roomId)
+        .eq('id', roomCode.toUpperCase())
         .single();
 
       if (fetchError) throw fetchError;
-
       if (!roomData) throw new Error('Room not found');
-      if (roomData.player_ids.length >= roomData.max_players) throw new Error('Room is full');
       if (roomData.status !== RoomStatusEnum.WAITING) throw new Error('Game is already in progress');
-      if (roomData.player_ids.includes(user.id)) return { data: roomData, error: null };
 
-      const updatedPlayerIds = [...roomData.player_ids, user.id];
+      const currentPlayerIds = roomData.player_ids.map(id => id.toString());
+      const newPlayerIds = [...currentPlayerIds, user.id.toString()];
 
       const { data, error } = await supabase
         .rpc('join_game_room', {
-          p_room_id: roomId,
-          p_current_player_ids: roomData.player_ids,
-          p_new_player_ids: updatedPlayerIds
+          p_room_id: roomData.id,
+          p_current_player_ids: currentPlayerIds,
+          p_new_player_ids: newPlayerIds
         });
 
       if (error) throw error;
@@ -148,11 +227,11 @@ export const useOptimizedGameRooms = () => {
 
       toast({
         title: "Joined room!",
-        description: `You joined ${data.name || 'the game room'}`,
+        description: `You joined ${data.name || data.room_code}`,
       });
 
       await fetchRooms();
-      return { data, error: null };
+      return { data: { ...data, id: roomData.id }, error: null };
     } catch (error: any) {
       console.error('Error joining room:', error);
       toast({
@@ -163,38 +242,6 @@ export const useOptimizedGameRooms = () => {
       return { data: null, error };
     }
   }, [user, toast, fetchRooms]);
-
-  const startGame = useCallback(async (roomId: string) => {
-    try {
-      // Update room status to in_progress
-      const { error: updateError } = await supabase
-        .from('game_rooms')
-        .update({
-          status: RoomStatusEnum.IN_PROGRESS,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', roomId);
-
-      if (updateError) throw updateError;
-
-      // Initialize game state using the RPC function
-      const { data, error } = await supabase
-        .rpc('initialize_game_state', {
-          p_room_id: roomId
-        });
-
-      if (error) {
-        console.error('Error initializing game state:', error);
-        throw error;
-      }
-
-      console.log('Game state initialized:', data);
-      return data;
-    } catch (error) {
-      console.error('Error starting game:', error);
-      throw error;
-    }
-  }, []);
 
   const leaveRoom = useCallback(async (roomId: string) => {
     if (!user) return { error: new Error('Not authenticated') };
@@ -215,7 +262,7 @@ export const useOptimizedGameRooms = () => {
         const { error: deleteError } = await supabase
           .from('game_rooms')
           .delete()
-          .eq('id', roomId);
+          .eq('id', roomData.id);
 
         if (deleteError) throw deleteError;
       } else {
@@ -223,13 +270,18 @@ export const useOptimizedGameRooms = () => {
 
         const { error: updateError } = await supabase
           .rpc('leave_game_room', {
-            p_room_id: roomId,
+            p_room_id: roomData.id,
             p_current_player_ids: roomData.player_ids,
             p_new_player_ids: updatedPlayerIds,
             p_new_owner_id: newOwnerId
           });
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          if (updateError.code === 'PGRST116') {
+            return await leaveRoom(roomId);
+          }
+          throw updateError;
+        }
       }
 
       await fetchRooms();
@@ -240,46 +292,27 @@ export const useOptimizedGameRooms = () => {
     }
   }, [user, fetchRooms]);
 
-  const setupFetchInterval = useCallback(() => {
-    // Clear any existing interval
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  const startGame = useCallback(async (roomId: string) => {
+    if (!user) return { error: new Error('Not authenticated') };
+
+    try {
+      const { error } = await supabase
+        .from('game_rooms')
+        .update({
+          status: RoomStatusEnum.IN_PROGRESS,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', roomId);
+
+      if (error) throw error;
+
+      await fetchRooms();
+      return { error: null };
+    } catch (error) {
+      console.error('Error starting game:', error);
+      return { error };
     }
-
-    // Set up a new interval for fetching rooms
-    intervalRef.current = window.setInterval(() => {
-      if (isMountedRef.current) {
-        console.log('Fetching rooms on interval');
-        fetchRooms();
-      }
-    }, FETCH_INTERVAL);
-  }, [fetchRooms]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-
-    // Fetch initial data
-    fetchRooms();
-
-    // Set up interval for fetching rooms
-    setupFetchInterval();
-
-    return () => {
-      isMountedRef.current = false;
-
-      // Clean up interval on unmount
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [user?.id, fetchRooms, setupFetchInterval]);
+  }, [user, fetchRooms]);
 
   return {
     rooms,
@@ -287,10 +320,10 @@ export const useOptimizedGameRooms = () => {
     createRoom,
     joinRoom,
     leaveRoom,
-    startGame,
+    refetchRooms: fetchRooms,
     getRoom,
     getPlayers,
-    refetchRooms: fetchRooms,
+    startGame,
     currentUser: user,
   };
 };

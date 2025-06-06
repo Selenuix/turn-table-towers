@@ -7,10 +7,12 @@ interface LobbyStatsProps {
 }
 
 export const LobbyStats = ({ rooms }: LobbyStatsProps) => {
-  // Filter out finished games
-  const activeRooms: GameRoom[] = rooms.filter(room => room.status !== RoomStatusEnum.FINISHED);
+  // Filter out finished and in-progress games
+  const activeRooms: GameRoom[] = rooms.filter(room => 
+    room.status === RoomStatusEnum.WAITING
+  );
   const totalPlayers: number = activeRooms.reduce((acc, room) => acc + room.player_ids.length, 0);
-  const openGames: number = activeRooms.filter(room => room.status === RoomStatusEnum.WAITING).length;
+  const openGames: number = activeRooms.length;  // All active rooms are open games now
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
@@ -19,7 +21,7 @@ export const LobbyStats = ({ rooms }: LobbyStatsProps) => {
           <div className="text-3xl font-bold text-blue-400 mb-2">
             {activeRooms.length}
           </div>
-          <div className="text-slate-300">Active Rooms</div>
+          <div className="text-slate-300">Available Rooms</div>
         </CardContent>
       </Card>
 
@@ -28,7 +30,7 @@ export const LobbyStats = ({ rooms }: LobbyStatsProps) => {
           <div className="text-3xl font-bold text-green-400 mb-2">
             {totalPlayers}
           </div>
-          <div className="text-slate-300">Players Online</div>
+          <div className="text-slate-300">Players in Lobby</div>
         </CardContent>
       </Card>
 

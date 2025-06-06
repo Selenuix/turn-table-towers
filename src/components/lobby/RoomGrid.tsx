@@ -13,7 +13,7 @@ interface RoomGridProps {
 
 export const RoomGrid = ({ rooms, currentUserId, onRoomAction }: RoomGridProps) => {
   // Filter out finished games
-  const activeRooms = rooms.filter(room => room.status !== RoomStatusEnum.FINISHED);
+  const activeRooms: GameRoom[] = rooms.filter(room => room.status !== RoomStatusEnum.FINISHED);
 
   const getStatusColor = (status: string) => {
     switch (status) {

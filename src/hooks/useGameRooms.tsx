@@ -85,6 +85,7 @@ export const useGameRooms = () => {
         .from('game_rooms')
         .select('*')
         .neq('status', RoomStatusEnum.FINISHED)
+        .eq('status', RoomStatusEnum.WAITING)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

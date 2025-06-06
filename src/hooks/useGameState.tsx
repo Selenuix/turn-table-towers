@@ -335,7 +335,7 @@ export const useGameState = (roomId: string, userId: string) => {
           updatedGameState.deck = updatedGameState.deck.slice(1);
 
           // Check if target is eliminated
-          if (targetPlayerState.hp === 0) {
+          if (targetPlayerState.hp < 0) {
             targetPlayerState.eliminated = true;
           }
 
@@ -374,7 +374,7 @@ export const useGameState = (roomId: string, userId: string) => {
 
           // Store attack result data for logging
           const attackResultData = {
-            attackValue: attackResult.attackValue,
+            attackValue: attackResult.totalAttackValue,
             shieldValue: attackResult.shieldValue,
             damage: attackResult.damage
           };

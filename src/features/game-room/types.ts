@@ -13,7 +13,8 @@ export interface GameRoom {
 export interface Player {
   id: string;
   username: string | null;
-  email: string | null;
+  email: string;
+  avatar_url: string | null;
   created_at: string;
 }
 
@@ -59,7 +60,7 @@ export interface GameAction {
   stored_card_indices?: number[];
 }
 
-export type GameActionType = 
+export type GameActionType =
   | 'change_own_shield'
   | 'change_other_shield'
   | 'store_card'

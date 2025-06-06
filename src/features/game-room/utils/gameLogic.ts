@@ -1,4 +1,3 @@
-
 import { Card, CardRank } from '../types';
 
 export const getCardValue = (card: Card): number => {
@@ -121,9 +120,10 @@ export const calculateAttackResult = (
 
 export const isGameOver = (playerStates: Record<string, any>): { gameOver: boolean; winner?: string } => {
   const activePlayers = Object.entries(playerStates).filter(
-    ([_, state]) => !state.eliminated && state.hp > 0
+    ([_, state]) => !state.eliminated && state.hp >= 0
   );
   
+  // Game is over when only one player remains
   if (activePlayers.length <= 1) {
     return {
       gameOver: true,
@@ -149,7 +149,7 @@ export const getNextActivePlayer = (
     const nextPlayerId = playerIds[nextIndex];
     const nextPlayerState = playerStates[nextPlayerId];
     
-    if (!nextPlayerState.eliminated && nextPlayerState.hp > 0) {
+    if (!nextPlayerState.eliminated && nextPlayerState.hp >= 0) {
       return nextPlayerId;
     }
   }

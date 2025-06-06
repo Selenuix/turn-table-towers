@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,10 @@ import { RoomGrid } from "@/components/lobby/RoomGrid";
 import { LobbyStats } from "@/components/lobby/LobbyStats";
 import CreateRoomModal from "@/components/CreateRoomModal";
 import JoinRoomModal from "@/components/JoinRoomModal";
+import { GameRoom } from '@/features/game-room/types';
+import { CreateGame } from '@/features/game-room/components/CreateGame';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -18,6 +21,8 @@ const Index = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [username, setUsername] = useState<string>("");
+  const [selectedRoom, setSelectedRoom] = useState<GameRoom | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -33,23 +38,29 @@ const Index = () => {
     navigate('/auth');
   };
 
-  const handleRoomAction = async (roomId: string, isInRoom: boolean) => {
+  const handleRoomAction = async (roomCode: string, isInRoom: boolean) => {
     if (isInRoom) {
-      navigate(`/room/${roomId}`);
+      navigate(`/room/${roomCode}`);
     } else {
       try {
-        const { data } = await joinRoom(roomId);
+        const { data, error } = await joinRoom(roomCode);
+        if (error) throw error;
         if (data) {
-          navigate(`/room/${roomId}`);
+          navigate(`/room/${data.id}`);
         }
-      } catch (error) {
-        console.error('Error joining room:', error);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to join room",
+          variant: "destructive",
+        });
       }
     }
   };
 
-  const handleRoomJoined = (roomId: string) => {
-    navigate(`/room/${roomId}`);
+  const handleRoomJoined = (roomCode: string) => {
+    // This function is no longer needed as we handle navigation in handleRoomAction
+    // Remove this function and its usage
   };
 
   if (authLoading) {
@@ -109,9 +120,9 @@ const Index = () => {
               <p>Be the first to create a game room!</p>
             </div>
           ) : (
-            <RoomGrid 
-              rooms={rooms} 
-              currentUserId={user.id} 
+            <RoomGrid
+              rooms={rooms}
+              currentUserId={user.id}
               onRoomAction={handleRoomAction}
             />
           )}

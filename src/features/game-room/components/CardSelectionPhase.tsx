@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '../types';
@@ -13,6 +12,7 @@ interface CardSelectionPhaseProps {
 export const CardSelectionPhase = ({ playerHand, onSetupComplete }: CardSelectionPhaseProps) => {
   const [selectedShield, setSelectedShield] = useState<number | null>(null);
   const [selectedHP, setSelectedHP] = useState<number[]>([]);
+  const [cardsRevealed, setCardsRevealed] = useState(false);
 
   const handleCardClick = (index: number) => {
     if (selectedShield === index) {
@@ -41,7 +41,13 @@ export const CardSelectionPhase = ({ playerHand, onSetupComplete }: CardSelectio
 
   const handleComplete = () => {
     if (canComplete && selectedShield !== null) {
-      onSetupComplete(selectedShield, selectedHP);
+      // First reveal the cards
+      setCardsRevealed(true);
+      
+      // After a short delay, complete the setup
+      setTimeout(() => {
+        onSetupComplete(selectedShield, selectedHP);
+      }, 2000); // 2 second delay to allow player to see the card values
     }
   };
 
@@ -54,10 +60,10 @@ export const CardSelectionPhase = ({ playerHand, onSetupComplete }: CardSelectio
         </p>
         <div className="flex justify-center gap-8 text-sm">
           <div className="text-blue-400">
-            Shield: {selectedShield !== null ? getCardValue(playerHand[selectedShield]) : 'None selected'}
+            Shield: {selectedShield !== null ? (cardsRevealed ? getCardValue(playerHand[selectedShield]) : '?') : 'None selected'}
           </div>
           <div className="text-green-400">
-            HP: {totalHP} ({selectedHP.length} cards)
+            HP: {cardsRevealed ? totalHP : '?'} ({selectedHP.length} cards)
           </div>
         </div>
       </div>
@@ -77,7 +83,7 @@ export const CardSelectionPhase = ({ playerHand, onSetupComplete }: CardSelectio
                 }`}
                 onClick={() => handleCardClick(index)}
               >
-                <CardComponent card={card} />
+                <CardComponent card={card} faceDown={!cardsRevealed} />
               </div>
               <div className="text-center text-xs mt-2">
                 {role === 'shield' && <span className="text-blue-400 font-medium">Shield</span>}
@@ -89,13 +95,13 @@ export const CardSelectionPhase = ({ playerHand, onSetupComplete }: CardSelectio
         })}
       </div>
 
-      <div className="text-center">
+      <div className="flex justify-center">
         <Button
           onClick={handleComplete}
           disabled={!canComplete}
           className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600"
         >
-          Confirm Setup
+          {cardsRevealed ? "Finalizing Setup..." : "Confirm Setup"}
         </Button>
       </div>
     </div>

@@ -36,12 +36,19 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "chat_messages_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "chat_messages_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "game_rooms"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
       game_logs: {
@@ -71,114 +78,172 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "game_logs_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "game_logs_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "game_rooms"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
       game_rooms: {
         Row: {
-          created_at: string
           id: string
-          max_players: number
           name: string | null
           owner_id: string
-          player_ids: string[] | null
+          player_ids: string[]
+          max_players: number
           room_code: string
-          status: Database["public"]["Enums"]["game_status"] | null
+          created_at: string
           updated_at: string
+          status: string
         }
         Insert: {
-          created_at?: string
           id?: string
-          max_players?: number
           name?: string | null
           owner_id: string
-          player_ids?: string[] | null
+          player_ids?: string[]
+          max_players?: number
           room_code: string
-          status?: Database["public"]["Enums"]["game_status"] | null
+          created_at?: string
           updated_at?: string
+          status?: string
         }
         Update: {
-          created_at?: string
           id?: string
-          max_players?: number
           name?: string | null
           owner_id?: string
-          player_ids?: string[] | null
+          player_ids?: string[]
+          max_players?: number
           room_code?: string
-          status?: Database["public"]["Enums"]["game_status"] | null
+          created_at?: string
           updated_at?: string
+          status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "game_rooms_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       game_states: {
         Row: {
           created_at: string
           current_player_id: string | null
-          deck: Database["public"]["CompositeTypes"]["card"][]
-          discard_pile: Database["public"]["CompositeTypes"]["card"][]
+          deck: Json
+          discard_pile: Json
           id: string
           player_states: Json
-          room_id: string | null
-          status: string | null
+          room_id: string
+          status: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           current_player_id?: string | null
-          deck: Database["public"]["CompositeTypes"]["card"][]
-          discard_pile?: Database["public"]["CompositeTypes"]["card"][]
+          deck: Json
+          discard_pile: Json
           id?: string
           player_states: Json
-          room_id?: string | null
-          status?: string | null
+          room_id: string
+          status?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           current_player_id?: string | null
-          deck?: Database["public"]["CompositeTypes"]["card"][]
-          discard_pile?: Database["public"]["CompositeTypes"]["card"][]
+          deck?: Json
+          discard_pile?: Json
           id?: string
           player_states?: Json
-          room_id?: string | null
-          status?: string | null
+          room_id?: string
+          status?: string
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "game_states_room_id_fkey"
             columns: ["room_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "game_rooms"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
-          email: string | null
           id: string
-          username: string | null
+          updated_at: string
+          username: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
-          email?: string | null
           id: string
-          username?: string | null
+          updated_at?: string
+          username: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
-          email?: string | null
           id?: string
-          username?: string | null
+          updated_at?: string
+          username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_preferences: {
+        Row: {
+          id: string
+          user_id: string
+          show_rules_on_create: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          show_rules_on_create?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          show_rules_on_create?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {
