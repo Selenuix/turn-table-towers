@@ -19,9 +19,11 @@ interface ChatSidebarProps {
 
 export const ChatSidebar = ({ roomId, currentUserId, players, room }: ChatSidebarProps) => {
   const [message, setMessage] = useState('');
-  const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
+  const [lastViewedTime, setLastViewedTime] = useState<Date>(new Date());
+  const [isVisible, setIsVisible] = useState(true);
   const { messages, gameLogs, loading, sendMessage } = useChat(roomId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Create players lookup for easy access
   const playersLookup = players.reduce((acc, player) => {
@@ -35,9 +37,10 @@ export const ChatSidebar = ({ roomId, currentUserId, players, room }: ChatSideba
     ...gameLogs.map(log => ({ ...log, type: 'log' as const }))
   ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-  // Calculate unread message count (only chat messages, not logs)
+  // Calculate unread message count (only chat messages from others, not logs)
   const unreadMessageCount = messages.filter(msg => 
-    !lastReadMessageId || new Date(msg.created_at) > new Date(lastReadMessageId)
+    msg.player_id !== currentUserId && 
+    new Date(msg.created_at) > lastViewedTime
   ).length;
 
   const scrollToBottom = () => {
@@ -46,12 +49,38 @@ export const ChatSidebar = ({ roomId, currentUserId, players, room }: ChatSideba
 
   useEffect(() => {
     scrollToBottom();
-    // Mark messages as read when they're visible
-    if (messages.length > 0) {
-      const latestMessage = messages[messages.length - 1];
-      setLastReadMessageId(latestMessage.id);
+  }, [combinedEntries]);
+
+  // Mark messages as read when the component becomes visible or when new messages arrive
+  useEffect(() => {
+    if (isVisible && messages.length > 0) {
+      setLastViewedTime(new Date());
     }
-  }, [combinedEntries, messages]);
+  }, [isVisible, messages.length]);
+
+  // Handle visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsVisible(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Handle scroll to mark messages as read
+  const handleScroll = () => {
+    if (chatContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+      
+      if (isNearBottom) {
+        setLastViewedTime(new Date());
+      }
+    }
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +89,7 @@ export const ChatSidebar = ({ roomId, currentUserId, players, room }: ChatSideba
     try {
       await sendMessage(message);
       setMessage('');
+      setLastViewedTime(new Date());
     } catch (error) {
       console.error('Failed to send message:', error);
     }
@@ -131,7 +161,11 @@ export const ChatSidebar = ({ roomId, currentUserId, players, room }: ChatSideba
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div 
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto p-3 space-y-2"
+        onScroll={handleScroll}
+      >
         {combinedEntries.length === 0 ? (
           <div className="text-center text-slate-400 py-8 text-sm">
             No messages yet. Start the conversation!

@@ -9,47 +9,92 @@ export const useChat = (roomId: string) => {
   const [gameLogs, setGameLogs] = useState<GameLog[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuthContext();
-  const subscriptionRef = useRef<any>(null);
+  const channelRef = useRef<any>(null);
   const isMountedRef = useRef<boolean>(true);
 
-  const fetchMessages = useCallback(async () => {
+  const fetchInitialData = useCallback(async () => {
     if (!roomId) return;
 
     try {
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('room_id', roomId)
-        .order('created_at', { ascending: true });
+      // Fetch initial messages and logs in parallel
+      const [messagesResult, logsResult] = await Promise.all([
+        supabase
+          .from('chat_messages')
+          .select('*')
+          .eq('room_id', roomId)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('game_logs')
+          .select('*')
+          .eq('room_id', roomId)
+          .order('created_at', { ascending: true })
+      ]);
 
-      if (error) throw error;
+      if (messagesResult.error) throw messagesResult.error;
+      if (logsResult.error) throw logsResult.error;
+
       if (isMountedRef.current) {
-        // Type assertion to ensure compatibility
-        setMessages((data as ChatMessage[]) || []);
+        setMessages(messagesResult.data || []);
+        setGameLogs(logsResult.data || []);
       }
     } catch (error) {
-      console.error('Error fetching chat messages:', error);
+      console.error('Error fetching initial chat data:', error);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [roomId]);
 
-  const fetchGameLogs = useCallback(async () => {
-    if (!roomId) return;
+  const setupRealtimeSubscription = useCallback(() => {
+    if (!roomId || !user) return;
 
-    try {
-      const { data, error } = await supabase
-        .from('game_logs')
-        .select('*')
-        .eq('room_id', roomId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      if (isMountedRef.current) {
-        setGameLogs((data as GameLog[]) || []);
-      }
-    } catch (error) {
-      console.error('Error fetching game logs:', error);
+    // Clean up existing subscription
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
     }
-  }, [roomId]);
+
+    const channelName = `chat_room_${roomId}_${user.id}_${Date.now()}`;
+    console.log('Setting up chat real-time subscription:', channelName);
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `room_id=eq.${roomId}`
+        },
+        (payload) => {
+          console.log('New chat message received:', payload);
+          if (isMountedRef.current) {
+            setMessages(prev => [...prev, payload.new as ChatMessage]);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'game_logs',
+          filter: `room_id=eq.${roomId}`
+        },
+        (payload) => {
+          console.log('New game log received:', payload);
+          if (isMountedRef.current) {
+            setGameLogs(prev => [...prev, payload.new as GameLog]);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Chat subscription status:', status);
+      });
+
+    channelRef.current = channel;
+  }, [roomId, user?.id]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -60,47 +105,20 @@ export const useChat = (roomId: string) => {
     }
 
     // Fetch initial data
-    Promise.all([fetchMessages(), fetchGameLogs()]).finally(() => {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-    });
+    fetchInitialData();
 
     // Set up real-time subscription
-    const channelName = `chat_${roomId}_${user.id}_${Date.now()}`;
-    
-    const channel = supabase.channel(channelName)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `room_id=eq.${roomId}`
-      }, (payload) => {
-        if (isMountedRef.current) {
-          setMessages(prev => [...prev, payload.new as ChatMessage]);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'game_logs',
-        filter: `room_id=eq.${roomId}`
-      }, (payload) => {
-        if (isMountedRef.current) {
-          setGameLogs(prev => [...prev, payload.new as GameLog]);
-        }
-      })
-      .subscribe();
-
-    subscriptionRef.current = channel;
+    setupRealtimeSubscription();
 
     return () => {
       isMountedRef.current = false;
-      if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current);
+      if (channelRef.current) {
+        console.log('Cleaning up chat subscription');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
-  }, [roomId, user?.id, fetchMessages, fetchGameLogs]);
+  }, [roomId, user?.id, fetchInitialData, setupRealtimeSubscription]);
 
   const sendMessage = async (message: string) => {
     if (!user || !roomId || !message.trim()) return;
