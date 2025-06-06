@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ChatMessage, GameLog } from '../types';
@@ -34,7 +33,13 @@ export const useChat = (roomId: string) => {
       if (logsResult.error) throw logsResult.error;
 
       if (isMountedRef.current) {
-        setMessages(messagesResult.data || []);
+        // Type cast the messages to ensure proper typing
+        const typedMessages = (messagesResult.data || []).map(msg => ({
+          ...msg,
+          message_type: msg.message_type as 'user' | 'system'
+        })) as ChatMessage[];
+        
+        setMessages(typedMessages);
         setGameLogs(logsResult.data || []);
       }
     } catch (error) {
@@ -70,7 +75,11 @@ export const useChat = (roomId: string) => {
         (payload) => {
           console.log('New chat message received:', payload);
           if (isMountedRef.current) {
-            setMessages(prev => [...prev, payload.new as ChatMessage]);
+            const typedMessage = {
+              ...payload.new,
+              message_type: payload.new.message_type as 'user' | 'system'
+            } as ChatMessage;
+            setMessages(prev => [...prev, typedMessage]);
           }
         }
       )
