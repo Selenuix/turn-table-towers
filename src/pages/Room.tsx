@@ -1,3 +1,4 @@
+
 import {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useToast} from '@/components/ui/use-toast';
@@ -27,6 +28,7 @@ export default function Room() {
   const isSubscribedRef = useRef<boolean>(false);
   const roomIdRef = useRef<string>('');
   const isMountedRef = useRef<boolean>(true);
+  const lastFetchTimeRef = useRef<number>(0);
 
   const cleanupSubscription = () => {
     if (subscriptionRef.current) {
@@ -58,6 +60,65 @@ export default function Room() {
     }
   };
 
+  // Separate function to load room data with error handling
+  const loadRoomData = async (roomId: string, retryCount = 0) => {
+    try {
+      console.log('Loading room data for ID:', roomId, 'Retry count:', retryCount);
+      
+      const roomData = await getRoom(roomId);
+
+      if (!roomData) {
+        // If room not found and we haven't retried, try once more after a short delay
+        if (retryCount === 0) {
+          console.log('Room not found, retrying in 1 second...');
+          setTimeout(() => loadRoomData(roomId, 1), 1000);
+          return;
+        }
+        
+        console.error('Room not found after retry');
+        toast({
+          title: 'Error', 
+          description: 'Room not found or has been closed', 
+          variant: 'destructive',
+        });
+        navigate('/');
+        return;
+      }
+
+      if (isMountedRef.current) {
+        console.log('Setting room data:', roomData);
+        setRoom(roomData);
+        lastFetchTimeRef.current = Date.now();
+
+        const playersData = await getPlayers(roomData.player_ids);
+        if (isMountedRef.current) {
+          setPlayers(playersData);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading room:', error);
+      if (isMountedRef.current) {
+        // Only show error and navigate away if this isn't a network issue
+        if (retryCount === 0) {
+          console.log('Error loading room, retrying...');
+          setTimeout(() => loadRoomData(roomId, 1), 1000);
+          return;
+        }
+        
+        toast({
+          title: 'Error', 
+          description: 'Failed to load room data', 
+          variant: 'destructive',
+        });
+        navigate('/');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -78,50 +139,11 @@ export default function Room() {
       return;
     }
 
-    if (room && room.status === RoomStatusEnum.FINISHED) {
-      navigate('/', {replace: true});
-      return;
-    }
-
     // Store room ID for cleanup reference
     roomIdRef.current = id;
 
-    const loadRoom = async () => {
-      try {
-        const roomData = await getRoom(id);
-
-        if (!roomData) {
-          toast({
-            title: 'Error', description: 'Room not found', variant: 'destructive',
-          });
-          navigate('/');
-          return;
-        }
-
-        if (isMountedRef.current) {
-          setRoom(roomData);
-
-          const playersData = await getPlayers(roomData.player_ids);
-          if (isMountedRef.current) {
-            setPlayers(playersData);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading room:', error);
-        if (isMountedRef.current) {
-          toast({
-            title: 'Error', description: 'Failed to load room data', variant: 'destructive',
-          });
-          navigate('/');
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadRoom();
+    // Load initial room data
+    loadRoomData(id);
 
     // Clean up any existing subscription before creating a new one
     cleanupSubscription();
@@ -147,7 +169,7 @@ export default function Room() {
         }, async (payload) => {
           if (!isMountedRef.current) return;
 
-          console.log('Room update received:', payload.eventType);
+          console.log('Room update received:', payload.eventType, payload);
 
           if (payload.eventType === 'DELETE') {
             toast({
@@ -158,29 +180,31 @@ export default function Room() {
           }
 
           const updatedRoom = payload.new as GameRoom;
-          const previousRoom = room;
           
           if (isMountedRef.current) {
-            setRoom(updatedRoom);
+            // Only update if we have valid room data
+            if (updatedRoom && updatedRoom.id) {
+              setRoom(updatedRoom);
 
-            const playersData = await getPlayers(updatedRoom.player_ids);
-            if (isMountedRef.current) {
-              setPlayers(playersData);
+              const playersData = await getPlayers(updatedRoom.player_ids);
+              if (isMountedRef.current) {
+                setPlayers(playersData);
 
-              // Log player joins
-              if (previousRoom && updatedRoom.player_ids.length > previousRoom.player_ids.length) {
-                const newPlayerIds = updatedRoom.player_ids.filter(id => !previousRoom.player_ids.includes(id));
-                for (const newPlayerId of newPlayerIds) {
-                  await logGameAction('player_joined', { playerId: newPlayerId });
+                // Log player joins only if we have previous room data
+                if (room && updatedRoom.player_ids.length > room.player_ids.length) {
+                  const newPlayerIds = updatedRoom.player_ids.filter(id => !room.player_ids.includes(id));
+                  for (const newPlayerId of newPlayerIds) {
+                    await logGameAction('player_joined', { playerId: newPlayerId });
+                  }
                 }
-              }
 
-              // If the current user is no longer in the room, navigate back to lobby
-              if (!updatedRoom.player_ids.includes(user?.id || '')) {
-                toast({
-                  title: 'Left Room', description: 'You have left the room',
-                });
-                navigate('/');
+                // If the current user is no longer in the room, navigate back to lobby
+                if (!updatedRoom.player_ids.includes(user?.id || '')) {
+                  toast({
+                    title: 'Left Room', description: 'You have left the room',
+                  });
+                  navigate('/');
+                }
               }
             }
           }
@@ -202,7 +226,42 @@ export default function Room() {
       clearTimeout(timeoutId);
       cleanupSubscription();
     };
-  }, [id, user?.id, authLoading, getRoom, getPlayers, toast, navigate, room]);
+  }, [id, user?.id, authLoading, getRoom, getPlayers, toast, navigate]);
+
+  // Check room status periodically to handle cases where realtime updates might be missed
+  useEffect(() => {
+    if (!room || !user) return;
+
+    const intervalId = setInterval(async () => {
+      // Only check if it's been more than 30 seconds since last fetch
+      if (Date.now() - lastFetchTimeRef.current > 30000) {
+        console.log('Periodic room status check');
+        try {
+          const currentRoom = await getRoom(room.id);
+          if (!currentRoom) {
+            console.log('Room no longer exists during periodic check');
+            toast({
+              title: 'Room Closed', 
+              description: 'The room has been closed',
+            });
+            navigate('/');
+            return;
+          }
+          
+          if (currentRoom.status === RoomStatusEnum.FINISHED && room.status !== RoomStatusEnum.FINISHED) {
+            console.log('Room finished during periodic check');
+            navigate('/');
+            return;
+          }
+        } catch (error) {
+          console.error('Error during periodic room check:', error);
+          // Don't navigate away on network errors, just log them
+        }
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(intervalId);
+  }, [room?.id, room?.status, user, getRoom, toast, navigate]);
 
   const handleStartGame = async () => {
     if (!room) return;
