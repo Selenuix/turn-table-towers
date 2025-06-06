@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ChatMessage, GameLog } from '../types';
@@ -56,10 +57,12 @@ export const useChat = (roomId: string) => {
 
     // Clean up existing subscription
     if (channelRef.current) {
+      console.log('Cleaning up existing chat subscription');
       supabase.removeChannel(channelRef.current);
     }
 
-    const channelName = `chat_room_${roomId}_${user.id}_${Date.now()}`;
+    // Use a simpler, more reliable channel name
+    const channelName = `chat_${roomId}`;
     console.log('Setting up chat real-time subscription:', channelName);
 
     const channel = supabase
@@ -79,7 +82,12 @@ export const useChat = (roomId: string) => {
               ...payload.new,
               message_type: payload.new.message_type as 'user' | 'system'
             } as ChatMessage;
-            setMessages(prev => [...prev, typedMessage]);
+            setMessages(prev => {
+              // Prevent duplicates by checking if message already exists
+              const exists = prev.some(msg => msg.id === typedMessage.id);
+              if (exists) return prev;
+              return [...prev, typedMessage];
+            });
           }
         }
       )
@@ -94,12 +102,28 @@ export const useChat = (roomId: string) => {
         (payload) => {
           console.log('New game log received:', payload);
           if (isMountedRef.current) {
-            setGameLogs(prev => [...prev, payload.new as GameLog]);
+            setGameLogs(prev => {
+              // Prevent duplicates by checking if log already exists
+              const exists = prev.some(log => log.id === payload.new.id);
+              if (exists) return prev;
+              return [...prev, payload.new as GameLog];
+            });
           }
         }
       )
       .subscribe((status) => {
         console.log('Chat subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Chat real-time subscription active');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          console.log('Chat subscription closed/error, attempting to reconnect...');
+          // Attempt to reconnect after a delay
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setupRealtimeSubscription();
+            }
+          }, 2000);
+        }
       });
 
     channelRef.current = channel;
@@ -116,11 +140,16 @@ export const useChat = (roomId: string) => {
     // Fetch initial data
     fetchInitialData();
 
-    // Set up real-time subscription
-    setupRealtimeSubscription();
+    // Set up real-time subscription with a small delay to ensure clean setup
+    const timeoutId = setTimeout(() => {
+      if (isMountedRef.current) {
+        setupRealtimeSubscription();
+      }
+    }, 100);
 
     return () => {
       isMountedRef.current = false;
+      clearTimeout(timeoutId);
       if (channelRef.current) {
         console.log('Cleaning up chat subscription');
         supabase.removeChannel(channelRef.current);

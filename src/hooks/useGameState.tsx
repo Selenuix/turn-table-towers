@@ -372,14 +372,48 @@ export const useGameState = (roomId: string, userId: string) => {
             }
           }
 
-          break;
+          // Store attack result data for logging
+          const attackResultData = {
+            attackValue: attackResult.attackValue,
+            shieldValue: attackResult.shieldValue,
+            damage: attackResult.damage
+          };
+
+          // Update game state in database
+          const { error: updateError } = await supabase
+            .from('game_states')
+            .update({
+              deck: updatedGameState.deck,
+              discard_pile: updatedGameState.discard_pile,
+              player_states: JSON.stringify(updatedGameState.player_states),
+              current_player_id: updatedGameState.current_player_id,
+              status: updatedGameState.status,
+              updated_at: new Date().toISOString()
+            })
+            .eq('room_id', roomId);
+
+          if (updateError) throw updateError;
+
+          // Parse the player states back to an object before setting state
+          const parsedGameState = {
+            ...updatedGameState,
+            player_states: JSON.parse(JSON.stringify(updatedGameState.player_states))
+          };
+          setGameState(parsedGameState);
+
+          // Return success with attack data
+          return { 
+            success: true, 
+            error: null, 
+            data: attackResultData
+          };
         }
 
         default:
           throw new Error(`Unknown action: ${action}`);
       }
 
-      // Update game state in database
+      // Update game state in database for non-attack actions
       const { error: updateError } = await supabase
         .from('game_states')
         .update({
@@ -405,11 +439,7 @@ export const useGameState = (roomId: string, userId: string) => {
       return { 
         success: true, 
         error: null, 
-        data: action === 'attack' ? {
-          damage: data?.damage,
-          attackValue: data?.attackValue,
-          shieldValue: data?.shieldValue
-        } : null 
+        data: null 
       };
     } catch (error) {
       console.error('Error performing game action:', error);

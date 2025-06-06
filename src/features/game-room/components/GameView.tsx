@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { GameRoom, Player } from '../types';
 import { GameActions } from './GameActions';
@@ -63,8 +62,26 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
   // Get current player for display
   const currentPlayer = players.find(p => p.id === gameState?.current_player_id);
 
+  // Check if game is finished and get winner
+  const gameFinished = gameState?.status === 'finished';
+  const winner = gameFinished ? players.find(p => 
+    gameState.player_states[p.id] && !gameState.player_states[p.id].eliminated
+  ) : null;
+
   if (!gameState) {
     return <div className="text-white">Loading game state...</div>;
+  }
+
+  // Show Game Over screen if game is finished
+  if (gameFinished && winner) {
+    return (
+      <GameOver
+        winner={winner}
+        players={players}
+        playerStates={gameState.player_states}
+        currentUserId={currentUserId}
+      />
+    );
   }
 
   // Show setup phase if player needs to configure their cards
@@ -122,21 +139,13 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
             currentUserId={currentUserId}
             onAction={async (action: string, data?: any) => {
               try {
-                await performGameAction(action, data);
-                return { success: true, error: null as any };
+                const result = await performGameAction(action, data);
+                return { success: true, error: null as any, data: result.data };
               } catch (error) {
-                return { success: false, error: error as Error };
+                return { success: false, error: error as Error, data: null };
               }
             }}
           />
-        </div>
-      )}
-
-      {/* Game Over Condition */}
-      {gameState.status === 'finished' && (
-        <div className="text-center p-6 bg-green-900/30 border border-green-700/50 rounded-lg">
-          <h2 className="text-2xl font-bold text-green-300 mb-2">Game Over!</h2>
-          <p className="text-green-400">Winner will be announced soon.</p>
         </div>
       )}
     </div>
