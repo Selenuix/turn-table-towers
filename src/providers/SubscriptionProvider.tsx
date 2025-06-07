@@ -55,12 +55,17 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const channel = supabase.channel(channelName);
 
     if (config.table) {
-      channel.on('postgres_changes', {
+      const subscriptionConfig: any = {
         event: config.event || '*',
         schema: 'public',
         table: config.table,
-        ...(config.filter && { filter: config.filter })
-      }, config.callback);
+      };
+
+      if (config.filter) {
+        subscriptionConfig.filter = config.filter;
+      }
+
+      channel.on('postgres_changes', subscriptionConfig, config.callback);
     }
 
     channel.subscribe((status) => {
