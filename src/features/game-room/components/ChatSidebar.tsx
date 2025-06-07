@@ -38,19 +38,24 @@ export const ChatSidebar = ({roomId, currentUserId, players}: ChatSidebarProps) 
 
     // Set up chat subscription
     const channelName = `chat_${roomId}_${currentUserId}_${Date.now()}`;
-    setupSubscription(channelName, async (payload) => {
-      if (!isMountedRef.current) return;
+    setupSubscription(channelName, {
+      table: 'chat_messages',
+      filter: `room_id=eq.${roomId}`,
+      event: 'INSERT',
+      callback: (payload) => {
+        if (!isMountedRef.current) return;
 
-      if (payload.eventType === 'INSERT') {
-        const newMsg = payload.new as ChatMessage;
-        setMessages(prev => [...prev, newMsg]);
-        scrollToBottom();
+        if (payload.eventType === 'INSERT') {
+          const newMsg = payload.new as ChatMessage;
+          setMessages(prev => [...prev, newMsg]);
+          scrollToBottom();
+        }
       }
     });
 
     return () => {
       isMountedRef.current = false;
-      cleanupSubscription();
+      cleanupSubscription(channelName);
     };
   }, [roomId, currentUserId, setupSubscription, cleanupSubscription]);
 
