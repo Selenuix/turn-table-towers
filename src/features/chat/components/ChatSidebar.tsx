@@ -1,5 +1,6 @@
+
 import {useEffect, useRef, useState} from 'react';
-import {useSubscription} from '@/hooks/useSubscription';
+import {useSubscription} from '@/providers/SubscriptionProvider';
 import {Player} from '@/features/game-room/types';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
