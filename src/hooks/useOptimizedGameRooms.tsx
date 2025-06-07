@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from './useAuthContext';
@@ -19,13 +20,15 @@ export const useOptimizedGameRooms = () => {
 
   const fetchRooms = useCallback(async () => {
     try {
+      console.log('Fetching rooms with status:', 'waiting');
       const { data, error } = await supabase
         .from('game_rooms')
         .select('*')
-        .eq('status', RoomStatusEnum.WAITING)
+        .eq('status', 'waiting') // Use string literal instead of enum
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      console.log('Fetched rooms:', data);
       if (isMountedRef.current) {
         const typedRooms: GameRoom[] = (data || []).map(room => ({
           id: room.id,
@@ -170,6 +173,7 @@ export const useOptimizedGameRooms = () => {
 
       if (codeError) throw codeError;
 
+      console.log('Creating room with status: waiting');
       const { data, error } = await supabase
         .from('game_rooms')
         .insert({
@@ -178,12 +182,13 @@ export const useOptimizedGameRooms = () => {
           player_ids: [user.id],
           max_players: maxPlayers,
           room_code: codeData,
-          status: RoomStatusEnum.WAITING
+          status: 'waiting' // Use string literal to ensure consistency
         })
         .select()
         .single();
 
       if (error) throw error;
+      console.log('Room created:', data);
 
       toast({
         title: "Room created!",
@@ -215,7 +220,7 @@ export const useOptimizedGameRooms = () => {
 
       if (fetchError) throw fetchError;
       if (!roomData) throw new Error('Room not found');
-      if (roomData.status !== RoomStatusEnum.WAITING) throw new Error('Game is already in progress');
+      if (roomData.status !== 'waiting') throw new Error('Game is already in progress');
 
       const currentPlayerIds = roomData.player_ids.map(id => id.toString());
       const newPlayerIds = [...currentPlayerIds, user.id.toString()];
@@ -304,7 +309,7 @@ export const useOptimizedGameRooms = () => {
       const { error } = await supabase
         .from('game_rooms')
         .update({
-          status: RoomStatusEnum.IN_PROGRESS,
+          status: 'in_progress',
           updated_at: new Date().toISOString()
         })
         .eq('id', roomId);

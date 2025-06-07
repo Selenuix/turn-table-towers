@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useGameRooms } from '@/hooks/useGameRooms';
+import { useOptimizedGameRooms } from '@/hooks/useOptimizedGameRooms';
 import { X } from 'lucide-react';
 
 interface CreateRoomModalProps {
@@ -17,7 +17,7 @@ const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
   const [roomName, setRoomName] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [loading, setLoading] = useState(false);
-  const { createRoom } = useGameRooms();
+  const { createRoom } = useOptimizedGameRooms();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,11 +27,14 @@ const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
     try {
       const { data, error } = await createRoom(roomName, maxPlayers);
       if (data && !error) {
+        console.log('Room created successfully:', data);
         // Automatically navigate to the created room
         navigate(`/room/${data.id}`);
         onClose();
         setRoomName('');
         setMaxPlayers(4);
+      } else {
+        console.error('Error creating room:', error);
       }
     } catch (error) {
       console.error('Error creating room:', error);
