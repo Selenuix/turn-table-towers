@@ -3,53 +3,75 @@ import React, { createContext, useContext, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface SubscriptionContextType {
-  setupSubscription: (channelName: string, callback: (payload: any) => void) => void;
-  cleanupSubscription: () => void;
+  setupSubscription: (channelName: string, config: SubscriptionConfig) => void;
+  cleanupSubscription: (channelName?: string) => void;
+}
+
+interface SubscriptionConfig {
+  table?: string;
+  filter?: string;
+  event?: '*' | 'INSERT' | 'UPDATE' | 'DELETE';
+  callback: (payload: any) => void;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
 
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const subscriptionRef = useRef<any>(null);
-  const channelNameRef = useRef<string>('');
+  const subscriptionsRef = useRef<Map<string, any>>(new Map());
 
-  const cleanupSubscription = useCallback(() => {
-    if (subscriptionRef.current) {
-      console.log('Cleaning up subscription:', channelNameRef.current);
-      try {
-        supabase.removeChannel(subscriptionRef.current);
-      } catch (error) {
-        console.error('Error removing channel:', error);
+  const cleanupSubscription = useCallback((channelName?: string) => {
+    if (channelName) {
+      // Clean up specific subscription
+      const channel = subscriptionsRef.current.get(channelName);
+      if (channel) {
+        console.log('Cleaning up subscription:', channelName);
+        try {
+          supabase.removeChannel(channel);
+        } catch (error) {
+          console.error('Error removing channel:', error);
+        }
+        subscriptionsRef.current.delete(channelName);
       }
-      subscriptionRef.current = null;
-      channelNameRef.current = '';
+    } else {
+      // Clean up all subscriptions
+      console.log('Cleaning up all subscriptions');
+      subscriptionsRef.current.forEach((channel, name) => {
+        try {
+          supabase.removeChannel(channel);
+        } catch (error) {
+          console.error('Error removing channel:', error);
+        }
+      });
+      subscriptionsRef.current.clear();
     }
   }, []);
 
-  const setupSubscription = useCallback((channelName: string, callback: (payload: any) => void) => {
-    // Clean up any existing subscription first
-    cleanupSubscription();
+  const setupSubscription = useCallback((channelName: string, config: SubscriptionConfig) => {
+    // Clean up existing subscription with same name first
+    cleanupSubscription(channelName);
 
     console.log('Setting up subscription:', channelName);
-    channelNameRef.current = channelName;
 
     const channel = supabase.channel(channelName);
 
-    channel
-      .on('postgres_changes', {
-        event: '*',
+    if (config.table) {
+      channel.on('postgres_changes', {
+        event: config.event || '*',
         schema: 'public',
-        table: 'game_rooms'
-      }, callback)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to:', channelName);
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          console.error('Subscription error for:', channelName, status);
-        }
-      });
+        table: config.table,
+        ...(config.filter && { filter: config.filter })
+      }, config.callback);
+    }
 
-    subscriptionRef.current = channel;
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('Successfully subscribed to:', channelName);
+      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+        console.error('Subscription error for:', channelName, status);
+      }
+    });
+
+    subscriptionsRef.current.set(channelName, channel);
   }, [cleanupSubscription]);
 
   const value = {

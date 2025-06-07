@@ -84,21 +84,24 @@ export const useOptimizedGameRooms = () => {
     // Only set up subscription if we don't already have one
     if (!subscriptionActiveRef.current) {
       subscriptionActiveRef.current = true;
-      const channelName = `game_rooms_${user.id}_${Date.now()}`;
+      const channelName = `game_rooms_${user.id}`;
 
-      setupSubscription(channelName, async (payload) => {
-        if (!isMountedRef.current) return;
+      setupSubscription(channelName, {
+        table: 'game_rooms',
+        callback: async (payload) => {
+          if (!isMountedRef.current) return;
 
-        console.log('Room subscription update:', payload);
+          console.log('Room subscription update:', payload);
 
-        // If it's a DELETE event, remove the room from the list
-        if (payload.eventType === 'DELETE') {
-          setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
-          return;
+          // If it's a DELETE event, remove the room from the list
+          if (payload.eventType === 'DELETE') {
+            setRooms(prevRooms => prevRooms.filter(room => room.id !== payload.old.id));
+            return;
+          }
+
+          // For INSERT and UPDATE events, fetch the latest rooms
+          await fetchRooms();
         }
-
-        // For INSERT and UPDATE events, fetch the latest rooms
-        await fetchRooms();
       });
     }
 
@@ -109,7 +112,7 @@ export const useOptimizedGameRooms = () => {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      cleanupSubscription();
+      cleanupSubscription(`game_rooms_${user.id}`);
     };
   }, [user?.id, fetchRooms, setupFetchInterval, setupSubscription, cleanupSubscription]);
 

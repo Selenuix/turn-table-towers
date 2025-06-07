@@ -36,7 +36,6 @@ export default function Room() {
   const isMountedRef = useRef<boolean>(true);
   const hasShownRulesRef = useRef<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const subscriptionActiveRef = useRef<boolean>(false);
 
   // Log game action helper
   const logGameAction = async (actionType: string, actionData?: any) => {
@@ -133,14 +132,13 @@ export default function Room() {
 
     checkGameOver();
 
-    // Set up real-time subscription
-    if (!subscriptionActiveRef.current) {
-      subscriptionActiveRef.current = true;
-      const channelName = `room_${roomCode}_${user.id}_${Date.now()}`;
+    // Set up real-time subscription for room updates
+    const channelName = `room_${roomCode}`;
 
-      console.log('Creating room subscription:', channelName);
-
-      setupSubscription(channelName, async (payload) => {
+    setupSubscription(channelName, {
+      table: 'game_rooms',
+      filter: `id=eq.${roomCode}`,
+      callback: async (payload) => {
         if (!isMountedRef.current) return;
 
         console.log('Room update received:', payload.eventType, payload);
@@ -180,15 +178,14 @@ export default function Room() {
             }
           }
         }
-      });
-    }
+      }
+    });
 
     return () => {
       isMountedRef.current = false;
-      subscriptionActiveRef.current = false;
-      cleanupSubscription();
+      cleanupSubscription(channelName);
     };
-  }, [roomCode, user, authLoading]);
+  }, [roomCode, user, authLoading, setupSubscription, cleanupSubscription]);
 
   const handleStartGame = async () => {
     if (!room) return;
