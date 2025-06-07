@@ -71,24 +71,10 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
     );
   }
 
-  // Check if current player needs to setup their cards
-  const needsSetup = gameState && 
-    gameState.player_states?.[currentUserId] && 
-    !gameState.player_states[currentUserId].shield &&
-    gameState.player_states[currentUserId].hp === 0;
+  // Check if game is actually finished (room status is 'finished')
+  const gameFinished = room.status === 'finished';
 
-  const playerHand = gameState?.player_states?.[currentUserId]?.hand || [];
-
-  // Check if all players have completed setup
-  const allPlayersSetup = gameState && gameState.player_states && 
-    Object.values(gameState.player_states).every((state: any) => state.setup_complete);
-
-  // Get current player for display
-  const currentPlayer = players.find(p => p.id === gameState?.current_player_id);
-
-  // Check if game is finished and get winner
-  const gameFinished = gameState?.status === 'finished';
-
+  // Only show GameOver if the game is actually finished
   if (gameFinished) {
     return (
       <GameOver
@@ -99,18 +85,34 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
     );
   }
 
+  // Check if current player needs to setup their cards
+  const currentPlayerState = gameState?.player_states?.[currentUserId];
+  const needsSetup = currentPlayerState && 
+    !currentPlayerState.shield &&
+    currentPlayerState.hp === 0 &&
+    !currentPlayerState.setup_complete;
+
+  const playerHand = currentPlayerState?.hand || [];
+
+  // Check if all players have completed setup
+  const allPlayersSetup = gameState && gameState.player_states && 
+    Object.values(gameState.player_states).every((state: any) => state.setup_complete);
+
+  // Get current player for display
+  const currentPlayer = players.find(p => p.id === gameState?.current_player_id);
+
   return (
     <div className="space-y-8">
-      {/* Setup Phase */}
-      {needsSetup && (
+      {/* Setup Phase - only show if player needs setup and game is not finished */}
+      {needsSetup && !gameFinished && (
         <CardSelectionPhase
           playerHand={playerHand}
           onSetupComplete={handleSetupComplete}
         />
       )}
 
-      {/* Game Phase */}
-      {!needsSetup && allPlayersSetup && (
+      {/* Game Phase - only show if setup is complete and game is not finished */}
+      {!needsSetup && allPlayersSetup && !gameFinished && (
         <>
           {/* Player Boards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -128,7 +130,7 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
           </div>
 
           {/* Game Actions */}
-          {gameState?.current_player_id === currentUserId && !gameFinished && (
+          {gameState?.current_player_id === currentUserId && (
             <GameActions
               isPlayerTurn={gameState?.current_player_id === currentUserId}
               currentPlayerState={gameState?.player_states[currentUserId]}
@@ -140,6 +142,14 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
             />
           )}
         </>
+      )}
+
+      {/* Waiting for setup phase */}
+      {!allPlayersSetup && !needsSetup && !gameFinished && (
+        <div className="text-center text-slate-400">
+          <h3 className="text-xl font-semibold mb-2">Waiting for other players</h3>
+          <p>All players need to complete their card setup before the game can begin.</p>
+        </div>
       )}
     </div>
   );

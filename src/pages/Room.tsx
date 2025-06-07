@@ -1,3 +1,4 @@
+
 import {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useToast} from '@/components/ui/use-toast';
@@ -191,8 +192,31 @@ export default function Room() {
     if (!room) return;
 
     try {
-      const { error } = await startGame(room.id);
+      // Check if there's already a game state for this room
+      const { data: existingGameState } = await supabase
+        .from('game_states')
+        .select('id')
+        .eq('room_id', room.id)
+        .maybeSingle();
+
+      if (!existingGameState) {
+        // Initialize game state if it doesn't exist
+        const { error: initError } = await supabase
+          .rpc('initialize_game_state', {
+            p_room_id: room.id
+          });
+
+        if (initError) throw initError;
+      }
+
+      // Update room status to in_progress only when actually starting the game
+      const { error } = await supabase
+        .from('game_rooms')
+        .update({ status: 'in_progress' })
+        .eq('id', room.id);
+
       if (error) throw error;
+
       setRoom(prev => prev ? { ...prev, status: RoomStatusEnum.IN_PROGRESS } : null);
     } catch (error: any) {
       toast({
@@ -274,7 +298,7 @@ export default function Room() {
           ) : room && (
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
               <div className="lg:col-span-3 order-2 lg:order-1">
-                {room.status === 'finished' ? (
+                {isGameFinished ? (
                   <GameOver
                     players={players}
                     currentUserId={user?.id || ''}
@@ -285,7 +309,7 @@ export default function Room() {
                     room={room}
                     players={players}
                     currentUserId={user?.id || ''}
-                    isGameInProgress={room.status === 'in_progress'}
+                    isGameInProgress={isGameInProgress}
                     onStartGame={handleStartGame}
                     onLeaveRoom={handleLeaveRoom}
                     onCopyInviteLink={handleCopyInviteLink}
