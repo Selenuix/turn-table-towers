@@ -14,6 +14,8 @@ import {useRulesPreference} from '@/hooks/useRulesPreference';
 import {GameOver} from '@/features/game-room/components/GameOver';
 import {LobbyHeader} from '@/components/lobby/LobbyHeader';
 import {Button} from '@/components/ui/button';
+import {ErrorBoundary} from '@/components/ErrorBoundary';
+import {useSubscription} from '@/providers/SubscriptionProvider';
 
 export default function Room() {
   const {id: roomCode} = useParams<{id: string}>();
@@ -24,33 +26,17 @@ export default function Room() {
     getRoom, getPlayers, startGame, leaveRoom, joinRoom,
   } = useOptimizedGameRooms();
   const {shouldShowRules, loading: rulesLoading, updatePreference} = useRulesPreference();
+  const {setupSubscription, cleanupSubscription} = useSubscription();
 
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showRules, setShowRules] = useState(false);
   const [doNotShowAgain, setDoNotShowAgain] = useState(false);
-  const subscriptionRef = useRef<any>(null);
-  const channelNameRef = useRef<string>('');
-  const isSubscribedRef = useRef<boolean>(false);
-  const roomIdRef = useRef<string>('');
   const isMountedRef = useRef<boolean>(true);
   const hasShownRulesRef = useRef<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-
-  const cleanupSubscription = () => {
-    if (subscriptionRef.current) {
-      console.log('Cleaning up room subscription:', channelNameRef.current);
-      try {
-        supabase.removeChannel(subscriptionRef.current);
-      } catch (error) {
-        console.error('Error removing room channel:', error);
-      }
-      subscriptionRef.current = null;
-      isSubscribedRef.current = false;
-      channelNameRef.current = '';
-    }
-  };
+  const subscriptionActiveRef = useRef<boolean>(false);
 
   // Log game action helper
   const logGameAction = async (actionType: string, actionData?: any) => {
@@ -70,7 +56,6 @@ export default function Room() {
 
   const checkGameOver = async () => {
     try {
-      // Get current game state
       const { data: gameState } = await supabase
         .from('game_states')
         .select('player_states')
@@ -79,12 +64,10 @@ export default function Room() {
 
       if (!gameState) return;
 
-      // Count active players (not eliminated)
       const activePlayers = Object.entries(gameState.player_states)
         .filter(([_, state]) => !state.eliminated)
         .length;
 
-      // If only one player remains, update room status to finished
       if (activePlayers === 1) {
         const { error: updateError } = await supabase
           .from('game_rooms')
@@ -112,12 +95,10 @@ export default function Room() {
         }
 
         setRoom(roomData);
-        roomIdRef.current = roomData.id;
 
         const playersData = await getPlayers(roomData.player_ids);
         setPlayers(playersData);
 
-        // Only show rules if user hasn't seen them and preference is set to show
         if (!hasShownRulesRef.current && shouldShowRules && roomData.status === 'waiting') {
           setShowRules(true);
           hasShownRulesRef.current = true;
@@ -136,47 +117,30 @@ export default function Room() {
   useEffect(() => {
     isMountedRef.current = true;
 
-    // First check if authentication is still loading
     if (authLoading) {
       return;
     }
 
-    // If not logged in, redirect to auth page
     if (!user) {
       navigate('/auth', {replace: true});
       return;
     }
 
-    // If logged in but no room ID, redirect to lobby
     if (!roomCode) {
       navigate('/', {replace: true});
       return;
     }
 
-    // Store room ID for cleanup reference
-    roomIdRef.current = roomCode;
-
-    // Load initial room data
     checkGameOver();
 
-    // Clean up any existing subscription before creating a new one
-    cleanupSubscription();
-
     // Set up real-time subscription
-    const channelName = `room_${roomCode}_${user.id}_${Date.now()}`;
-    channelNameRef.current = channelName;
+    if (!subscriptionActiveRef.current) {
+      subscriptionActiveRef.current = true;
+      const channelName = `room_${roomCode}_${user.id}_${Date.now()}`;
 
-    console.log('Creating room subscription:', channelName);
+      console.log('Creating room subscription:', channelName);
 
-    const channel = supabase.channel(channelName);
-
-    channel
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'game_rooms',
-        filter: `id=eq.${roomCode}`
-      }, async (payload) => {
+      setupSubscription(channelName, async (payload) => {
         if (!isMountedRef.current) return;
 
         console.log('Room update received:', payload.eventType, payload);
@@ -192,44 +156,36 @@ export default function Room() {
 
         const updatedRoom = payload.new as GameRoom;
         
-        if (isMountedRef.current) {
-          // Only update if we have valid room data
-          if (updatedRoom && updatedRoom.id) {
-            setRoom(updatedRoom);
+        if (isMountedRef.current && updatedRoom && updatedRoom.id) {
+          setRoom(updatedRoom);
 
-            const playersData = await getPlayers(updatedRoom.player_ids);
-            if (isMountedRef.current) {
-              setPlayers(playersData);
-              // Check if game is over
-              await checkGameOver();
+          const playersData = await getPlayers(updatedRoom.player_ids);
+          if (isMountedRef.current) {
+            setPlayers(playersData);
+            await checkGameOver();
 
-              // Log player joins only if we have previous room data
-              if (room && updatedRoom.player_ids.length > room.player_ids.length) {
-                const newPlayerIds = updatedRoom.player_ids.filter(id => !room.player_ids.includes(id));
-                for (const newPlayerId of newPlayerIds) {
-                  await logGameAction('player_joined', { playerId: newPlayerId });
-                }
+            if (room && updatedRoom.player_ids.length > room.player_ids.length) {
+              const newPlayerIds = updatedRoom.player_ids.filter(id => !room.player_ids.includes(id));
+              for (const newPlayerId of newPlayerIds) {
+                await logGameAction('player_joined', { playerId: newPlayerId });
               }
+            }
 
-              // If the current user is no longer in the room, navigate back to lobby
-              if (!updatedRoom.player_ids.includes(user.id)) {
-                toast({
-                  title: 'Removed from Room',
-                  description: 'You have been removed from the room',
-                });
-                navigate('/');
-              }
+            if (!updatedRoom.player_ids.includes(user.id)) {
+              toast({
+                title: 'Removed from Room',
+                description: 'You have been removed from the room',
+              });
+              navigate('/');
             }
           }
         }
-      })
-      .subscribe();
-
-    subscriptionRef.current = channel;
-    isSubscribedRef.current = true;
+      });
+    }
 
     return () => {
       isMountedRef.current = false;
+      subscriptionActiveRef.current = false;
       cleanupSubscription();
     };
   }, [roomCode, user, authLoading]);
@@ -304,66 +260,68 @@ export default function Room() {
   const isGameFinished = room.status === RoomStatusEnum.FINISHED;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <LobbyHeader username={user?.email || ''} onSignOut={signOut} />
-      
-      <div className="container mx-auto px-4 py-8">
-        {error ? (
-          <div className="text-center text-red-500">
-            <h2 className="text-2xl font-bold mb-4">{error}</h2>
-            <Button onClick={() => navigate('/')}>Return to Lobby</Button>
-          </div>
-        ) : isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-          </div>
-        ) : room && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
-            <div className="lg:col-span-3 order-2 lg:order-1">
-              {room.status === 'finished' ? (
-                <GameOver
-                  players={players}
-                  currentUserId={user?.id || ''}
-                  roomId={roomCode}
-                />
-              ) : (
-                <RoomContent
-                  room={room}
-                  players={players}
-                  currentUserId={user?.id || ''}
-                  isGameInProgress={room.status === 'in_progress'}
-                  onStartGame={handleStartGame}
-                  onLeaveRoom={handleLeaveRoom}
-                  onCopyInviteLink={handleCopyInviteLink}
-                />
-              )}
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <LobbyHeader username={user?.email || ''} onSignOut={signOut} />
+        
+        <div className="container mx-auto px-4 py-8">
+          {error ? (
+            <div className="text-center text-red-500">
+              <h2 className="text-2xl font-bold mb-4">{error}</h2>
+              <Button onClick={() => navigate('/')}>Return to Lobby</Button>
             </div>
-            <div className="lg:col-span-1 order-1 lg:order-2">
-              <div className="sticky top-4">
-                <ChatSidebar roomId={roomCode} />
+          ) : isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : room && (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
+              <div className="lg:col-span-3 order-2 lg:order-1">
+                {room.status === 'finished' ? (
+                  <GameOver
+                    players={players}
+                    currentUserId={user?.id || ''}
+                    roomId={roomCode}
+                  />
+                ) : (
+                  <RoomContent
+                    room={room}
+                    players={players}
+                    currentUserId={user?.id || ''}
+                    isGameInProgress={room.status === 'in_progress'}
+                    onStartGame={handleStartGame}
+                    onLeaveRoom={handleLeaveRoom}
+                    onCopyInviteLink={handleCopyInviteLink}
+                  />
+                )}
+              </div>
+              <div className="lg:col-span-1 order-1 lg:order-2">
+                <div className="sticky top-4">
+                  <ChatSidebar roomId={roomCode} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
+        </div>
+        
+        {shouldShowRules && (
+          <Dialog open={showRules} onOpenChange={setShowRules}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-slate-800 border-slate-700">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold text-center text-white mb-4">
+                  How to Play
+                </DialogTitle>
+              </DialogHeader>
+              <Rules 
+                onClose={handleCloseRules}
+                showDoNotShowAgain={true}
+                onDoNotShowAgainChange={handleDoNotShowAgainChange}
+                doNotShowAgain={doNotShowAgain}
+              />
+            </DialogContent>
+          </Dialog>
         )}
       </div>
-      
-      {shouldShowRules && (
-        <Dialog open={showRules} onOpenChange={setShowRules}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-slate-800 border-slate-700">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-center text-white mb-4">
-                How to Play
-              </DialogTitle>
-            </DialogHeader>
-            <Rules 
-              onClose={handleCloseRules}
-              showDoNotShowAgain={true}
-              onDoNotShowAgainChange={handleDoNotShowAgainChange}
-              doNotShowAgain={doNotShowAgain}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+    </ErrorBoundary>
   );
 }

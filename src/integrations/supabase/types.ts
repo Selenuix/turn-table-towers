@@ -36,19 +36,26 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "chat_messages_player_id_fkey"
+            foreignKeyName: "chat_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_chat_messages_player"
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "chat_messages_room_id_fkey"
+            foreignKeyName: "fk_chat_messages_room"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "game_rooms"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       game_logs: {
@@ -78,172 +85,141 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "game_logs_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "game_logs_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "game_rooms"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       game_rooms: {
         Row: {
+          created_at: string
           id: string
+          max_players: number
           name: string | null
           owner_id: string
-          player_ids: string[]
-          max_players: number
+          player_ids: string[] | null
           room_code: string
-          created_at: string
+          status: Database["public"]["Enums"]["game_status"] | null
           updated_at: string
-          status: string
         }
         Insert: {
+          created_at?: string
           id?: string
+          max_players?: number
           name?: string | null
           owner_id: string
-          player_ids?: string[]
-          max_players?: number
+          player_ids?: string[] | null
           room_code: string
-          created_at?: string
+          status?: Database["public"]["Enums"]["game_status"] | null
           updated_at?: string
-          status?: string
         }
         Update: {
+          created_at?: string
           id?: string
+          max_players?: number
           name?: string | null
           owner_id?: string
-          player_ids?: string[]
-          max_players?: number
+          player_ids?: string[] | null
           room_code?: string
-          created_at?: string
+          status?: Database["public"]["Enums"]["game_status"] | null
           updated_at?: string
-          status?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "game_rooms_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       game_states: {
         Row: {
           created_at: string
           current_player_id: string | null
-          deck: Json
-          discard_pile: Json
+          deck: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile: Database["public"]["CompositeTypes"]["card"][]
           id: string
           player_states: Json
           room_id: string
-          status: string
+          status: Database["public"]["Enums"]["game_status"] | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           current_player_id?: string | null
-          deck: Json
-          discard_pile: Json
+          deck: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile?: Database["public"]["CompositeTypes"]["card"][]
           id?: string
           player_states: Json
           room_id: string
-          status?: string
+          status?: Database["public"]["Enums"]["game_status"] | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           current_player_id?: string | null
-          deck?: Json
-          discard_pile?: Json
+          deck?: Database["public"]["CompositeTypes"]["card"][]
+          discard_pile?: Database["public"]["CompositeTypes"]["card"][]
           id?: string
           player_states?: Json
           room_id?: string
-          status?: string
+          status?: Database["public"]["Enums"]["game_status"] | null
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "game_states_room_id_fkey"
             columns: ["room_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "game_rooms"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
+          email: string | null
           id: string
-          updated_at: string
-          username: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           id: string
-          updated_at?: string
-          username: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           id?: string
-          updated_at?: string
-          username?: string
+          username?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       user_preferences: {
         Row: {
-          id: string
-          user_id: string
-          show_rules_on_create: boolean
           created_at: string
+          id: string
+          show_rules_on_create: boolean | null
           updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          show_rules_on_create?: boolean
           created_at?: string
+          id?: string
+          show_rules_on_create?: boolean | null
           updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          show_rules_on_create?: boolean
           created_at?: string
+          id?: string
+          show_rules_on_create?: boolean | null
           updated_at?: string
+          user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_preferences_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
     }
     Views: {
@@ -263,8 +239,8 @@ export type Database = {
           discard_pile: Database["public"]["CompositeTypes"]["card"][]
           id: string
           player_states: Json
-          room_id: string | null
-          status: string | null
+          room_id: string
+          status: Database["public"]["Enums"]["game_status"] | null
           updated_at: string
         }
       }
@@ -314,38 +290,14 @@ export type Database = {
         }
         Returns: undefined
       }
-      start_game: {
-        Args: { p_room_id: string }
-        Returns: {
-          created_at: string
-          current_player_id: string | null
-          deck: Database["public"]["CompositeTypes"]["card"][]
-          discard_pile: Database["public"]["CompositeTypes"]["card"][]
-          id: string
-          player_states: Json
-          room_id: string | null
-          status: string | null
-          updated_at: string
-        }
-      }
-      update_player_cards: {
+      send_message: {
         Args: {
           p_room_id: string
           p_player_id: string
-          p_shield_index: number
-          p_hp_indices: number[]
+          p_message: string
+          p_message_type?: string
         }
-        Returns: {
-          created_at: string
-          current_player_id: string | null
-          deck: Database["public"]["CompositeTypes"]["card"][]
-          discard_pile: Database["public"]["CompositeTypes"]["card"][]
-          id: string
-          player_states: Json
-          room_id: string | null
-          status: string | null
-          updated_at: string
-        }
+        Returns: Json
       }
     }
     Enums: {

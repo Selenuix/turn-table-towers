@@ -4,7 +4,7 @@ import { useAuthContext } from './useAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { GameRoom, Player } from '@/features/game-room/types';
 import { RoomStatusEnum } from "@/consts";
-import { useSubscription } from '@/hooks/useSubscription';
+import { useSubscription } from '@/providers/SubscriptionProvider';
 
 export const useOptimizedGameRooms = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
@@ -14,7 +14,7 @@ export const useOptimizedGameRooms = () => {
   const isMountedRef = useRef<boolean>(true);
   const intervalRef = useRef<number | null>(null);
   const { setupSubscription, cleanupSubscription } = useSubscription();
-  const subscriptionChannelRef = useRef<string>('');
+  const subscriptionActiveRef = useRef<boolean>(false);
   const FETCH_INTERVAL = 10000;
 
   const fetchRooms = useCallback(async () => {
@@ -82,12 +82,14 @@ export const useOptimizedGameRooms = () => {
     setupFetchInterval();
 
     // Only set up subscription if we don't already have one
-    if (!subscriptionChannelRef.current) {
+    if (!subscriptionActiveRef.current) {
+      subscriptionActiveRef.current = true;
       const channelName = `game_rooms_${user.id}_${Date.now()}`;
-      subscriptionChannelRef.current = channelName;
 
       setupSubscription(channelName, async (payload) => {
         if (!isMountedRef.current) return;
+
+        console.log('Room subscription update:', payload);
 
         // If it's a DELETE event, remove the room from the list
         if (payload.eventType === 'DELETE') {
@@ -102,12 +104,12 @@ export const useOptimizedGameRooms = () => {
 
     return () => {
       isMountedRef.current = false;
+      subscriptionActiveRef.current = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
       cleanupSubscription();
-      subscriptionChannelRef.current = '';
     };
   }, [user?.id, fetchRooms, setupFetchInterval, setupSubscription, cleanupSubscription]);
 

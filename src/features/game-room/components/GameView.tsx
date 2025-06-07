@@ -1,10 +1,11 @@
+
 import { useEffect, useState } from 'react';
 import { GameRoom, Player } from '../types';
 import { GameActions } from './GameActions';
 import { CardSelectionPhase } from './CardSelectionPhase';
 import { PlayerBoard } from './PlayerBoard';
 import { GameOver } from './GameOver';
-import { useGameState } from '@/hooks/useGameState';
+import { useGameStateManager } from '@/hooks/useGameStateManager';
 import { useToast } from '@/components/ui/use-toast';
 
 interface GameViewProps {
@@ -14,9 +15,20 @@ interface GameViewProps {
 }
 
 export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
-  const { gameState, isPlayerTurn, performGameAction, setupPlayerCards, getPlayerHand } = useGameState(room.id, currentUserId);
+  const { gameState, loading, error } = useGameStateManager(room.id, currentUserId);
   const { toast } = useToast();
   const [isSetupComplete, setIsSetupComplete] = useState(false);
+
+  // Show error if game state failed to load
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: 'Game Error',
+        description: 'Failed to load game state. Please refresh the page.',
+        variant: 'destructive'
+      });
+    }
+  }, [error, toast]);
 
   const getPlayerName = (playerId: string) => {
     const player = players.find(p => p.id === playerId);
@@ -48,13 +60,22 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
     }
   };
 
+  // Show loading state
+  if (loading || !gameState) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   // Check if current player needs to setup their cards
   const needsSetup = gameState && 
     gameState.player_states?.[currentUserId] && 
     !gameState.player_states[currentUserId].shield &&
     gameState.player_states[currentUserId].hp === 0;
 
-  const playerHand = getPlayerHand();
+  const playerHand = gameState?.player_states?.[currentUserId]?.hand || [];
 
   // Check if all players have completed setup
   const allPlayersSetup = gameState && gameState.player_states && 
@@ -65,9 +86,8 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
 
   // Check if game is finished and get winner
   const gameFinished = gameState?.status === 'finished';
-  const winner = gameFinished ? players.find(p => !gameState.player_states[p.id].eliminated) : null;
 
-  if (gameFinished && winner) {
+  if (gameFinished) {
     return (
       <GameOver
         players={players}
@@ -106,15 +126,15 @@ export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
           </div>
 
           {/* Game Actions */}
-          {isPlayerTurn() && !gameFinished && (
+          {gameState?.current_player_id === currentUserId && !gameFinished && (
             <GameActions
-              isPlayerTurn={isPlayerTurn()}
+              isPlayerTurn={gameState?.current_player_id === currentUserId}
               currentPlayerState={gameState?.player_states[currentUserId]}
               players={players}
               playerStates={gameState?.player_states}
               roomId={room.id}
               currentUserId={currentUserId}
-              onAction={performGameAction}
+              onAction={async () => ({ success: true, error: null })} // Placeholder - will be handled by game state manager
             />
           )}
         </>
