@@ -1,27 +1,25 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useAuthContext } from "@/hooks/useAuthContext";
-import { useOptimizedGameRooms } from "@/hooks/useOptimizedGameRooms";
+import { useRoomManager } from "@/hooks/useRoomManager";
 import { LobbyHeader } from "@/components/lobby/LobbyHeader";
 import { RoomGrid } from "@/components/lobby/RoomGrid";
 import { LobbyStats } from "@/components/lobby/LobbyStats";
 import CreateRoomModal from "@/components/CreateRoomModal";
 import JoinRoomModal from "@/components/JoinRoomModal";
 import { GameRoom } from '@/features/game-room/types';
-import { CreateGame } from '@/features/game-room/components/CreateGame';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuthContext();
-  const { rooms, loading: roomsLoading, joinRoom } = useOptimizedGameRooms();
+  const { rooms, loading: roomsLoading, joinRoom } = useRoomManager();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [username, setUsername] = useState<string>("");
-  const [selectedRoom, setSelectedRoom] = useState<GameRoom | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,8 +57,8 @@ const Index = () => {
   };
 
   const handleRoomJoined = (roomCode: string) => {
-    // This function is no longer needed as we handle navigation in handleRoomAction
-    // Remove this function and its usage
+    // Navigate to the room after joining
+    navigate(`/room/${roomCode}`);
   };
 
   if (authLoading) {

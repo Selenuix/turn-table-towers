@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useOptimizedGameRooms } from '@/hooks/useOptimizedGameRooms';
+import { useRoomManager } from '@/hooks/useRoomManager';
 import { X } from 'lucide-react';
 
 interface CreateRoomModalProps {
@@ -17,7 +17,7 @@ const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
   const [roomName, setRoomName] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [loading, setLoading] = useState(false);
-  const { createRoom } = useOptimizedGameRooms();
+  const { createRoom } = useRoomManager();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
