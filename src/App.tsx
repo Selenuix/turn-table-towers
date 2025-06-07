@@ -7,7 +7,7 @@ import { SubscriptionProvider } from "@/providers/SubscriptionProvider";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Room from "./pages/Room";
-import RulesPage from "./pages/RulesPage";
+import { RulesPage } from "./pages/RulesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({

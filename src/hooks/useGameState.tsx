@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GameState, Card, PlayerState, RoomStatus } from '@/features/game-room/types';
@@ -143,17 +144,76 @@ export const useGameState = (roomId: string, userId: string) => {
     try {
       console.log('Setting up player cards:', { shieldIndex, hpIndices });
 
-      const { data, error } = await supabase
-        .rpc('update_player_cards', {
-          p_room_id: roomId,
-          p_player_id: userId,
-          p_shield_index: shieldIndex,
-          p_hp_indices: hpIndices
-        });
+      // Get current game state
+      const { data: currentGameState, error: fetchError } = await supabase
+        .from('game_states')
+        .select('*')
+        .eq('room_id', roomId)
+        .single();
 
-      if (error) {
-        console.error('Error setting up player cards:', error);
-        throw error;
+      if (fetchError) throw fetchError;
+
+      // Parse player states
+      const playerStates = typeof currentGameState.player_states === 'string' 
+        ? JSON.parse(currentGameState.player_states) 
+        : currentGameState.player_states;
+
+      const currentPlayerState = playerStates[userId];
+      if (!currentPlayerState || !currentPlayerState.hand) {
+        throw new Error('Player state not found or no hand available');
+      }
+
+      // Set up shield card
+      const shieldCard = currentPlayerState.hand[shieldIndex];
+      
+      // Set up HP cards
+      const hpCards = hpIndices.map(index => currentPlayerState.hand[index]);
+      const hpValue = hpCards.reduce((total, card) => total + getCardValue(card), 0);
+
+      // Remove selected cards from hand
+      const remainingHand = currentPlayerState.hand.filter((_, index) => 
+        index !== shieldIndex && !hpIndices.includes(index)
+      );
+
+      // Update player state
+      const updatedPlayerState = {
+        ...currentPlayerState,
+        hand: remainingHand,
+        shield: shieldCard,
+        hp_cards: hpCards,
+        hp: hpValue,
+        setup_complete: true
+      };
+
+      // Update player states
+      const updatedPlayerStates = {
+        ...playerStates,
+        [userId]: updatedPlayerState
+      };
+
+      // Check if all players have completed setup
+      const allPlayersSetup = Object.values(updatedPlayerStates).every((state: any) => state.setup_complete);
+
+      // Update game state in database
+      const { data, error } = await supabase
+        .from('game_states')
+        .update({
+          player_states: JSON.stringify(updatedPlayerStates),
+          status: allPlayersSetup ? 'in_progress' : 'waiting',
+          updated_at: new Date().toISOString()
+        })
+        .eq('room_id', roomId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // If all players are set up, also update the room status
+      if (allPlayersSetup) {
+        await supabase
+          .from('game_rooms')
+          .update({ status: 'in_progress' })
+          .eq('id', roomId);
       }
 
       console.log('Player cards setup successful:', data);

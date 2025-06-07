@@ -6,6 +6,7 @@ import { CardSelectionPhase } from './CardSelectionPhase';
 import { PlayerBoard } from './PlayerBoard';
 import { GameOver } from './GameOver';
 import { useGameStateManager } from '@/hooks/useGameStateManager';
+import { useGameState } from '@/hooks/useGameState';
 import { useToast } from '@/components/ui/use-toast';
 
 interface GameViewProps {
@@ -16,6 +17,7 @@ interface GameViewProps {
 
 export const GameView = ({ room, players, currentUserId }: GameViewProps) => {
   const { gameState, loading, error } = useGameStateManager(room.id, currentUserId);
+  const { setupPlayerCards } = useGameState(room.id, currentUserId);
   const { toast } = useToast();
   const [isSetupComplete, setIsSetupComplete] = useState(false);
 
